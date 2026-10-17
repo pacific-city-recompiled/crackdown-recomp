@@ -37,6 +37,7 @@
 // guest word is no longer written; only this function uses it.
 
 #include "generated/default/crackdown_init.h"
+#include "game_addresses.h"
 
 #include <atomic>
 #include <cstdint>
@@ -69,7 +70,7 @@ Barrier& BarrierFor(uint32_t word_addr) {
 }
 }  // namespace
 
-REX_HOOK_RAW(sub_82A50000) {
+CD_HOOK_RAW(CD_SUB(82A50000, 82AD8EB8)) {
   const uint32_t engine = ctx.r3.u32;
   const uint32_t word_addr = ctx.r4.u32;
   if (REX_LOAD_U32(engine + 304) == 0) {
@@ -77,7 +78,7 @@ REX_HOOK_RAW(sub_82A50000) {
   }
   const uint8_t cpu = REX_LOAD_U8(ctx.r13.u32 + 268);
   if (cpu >= 8) {  // never seen; keep the guest code for it
-    __imp__sub_82A50000(ctx, base);
+    CD_IMP(82A50000, 82AD8EB8)(ctx, base);
     return;
   }
 

@@ -11,6 +11,7 @@
 // VdSwap import.
 
 #include "generated/default/crackdown_init.h"
+#include "game_addresses.h"
 
 #include <rex/hook.h>
 #include <rex/logging/macros.h>
@@ -78,7 +79,7 @@ void OnGuestSwap() {}
 #endif
 }  // namespace
 
-REX_HOOK_RAW(sub_826BCA98) {
+CD_HOOK_RAW(CD_SUB(826BCA98, 82745E30)) {
   OnGuestSwap();
-  __imp__sub_826BCA98(ctx, base);
+  CD_IMP(826BCA98, 82745E30)(ctx, base);
 }
