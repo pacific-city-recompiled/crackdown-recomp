@@ -1,0 +1,47 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Jerrod <jerrod.uno@gmail.com>
+Date: Sat, 17 Oct 2026 10:30:00 -0400
+Subject: [PATCH] xam: dlc_root cvar for installed Marketplace content
+
+DLC (content type 00000002) always resolves under xuid 0 of the user data
+root. The launcher gives every save profile its own user data root, so a
+pack would have to be unpacked again for each profile. With --dlc_root set,
+xuid-0 Marketplace packages and their .header files resolve under that
+folder instead (same 0000000000000000/<title>/00000002 layout); saves and
+everything else still use the user data root. Unset, nothing changes.
+
+Host path handling only; no guest addresses or instructions touched.
+Checked on the PC 2026-10-17: Four-Play Pack (E4DDBC10...) unpacked under
+--dlc_root is enumerated, mounted and kept by the game with a profile user
+data root that holds no DLC.
+---
+diff --git a/src/system/xam/content_manager.cpp b/src/system/xam/content_manager.cpp
+index bd6c797..f13bd64 100644
+--- a/src/system/xam/content_manager.cpp
++++ b/src/system/xam/content_manager.cpp
+@@ -18,0 +19 @@
++#include <rex/cvar.h>
+@@ -28,0 +30,4 @@
++REXCVAR_DEFINE_STRING(dlc_root, "", "Runtime",
++                      "Folder of installed DLC (Marketplace content, shared by every user); "
++                      "default: the user data root");
++
+@@ -32,0 +38,10 @@ namespace xam {
++// DLC is stored under xuid 0, so one install can serve several user data roots.
++static std::filesystem::path ContentRoot(const std::filesystem::path& root_path, uint64_t xuid,
++                                         XContentType content_type) {
++  const auto& dlc_root = REXCVAR_GET(dlc_root);
++  if (xuid == 0 && content_type == XContentType::kMarketplaceContent && !dlc_root.empty()) {
++    return std::filesystem::absolute(rex::to_path(dlc_root));
++  }
++  return root_path;
++}
++
+@@ -99 +114 @@ std::filesystem::path ContentManager::ResolvePackageRoot(uint64_t xuid, XContent
+-  return root_path_ / xuid_str / title_id_str / content_type_str;
++  return ContentRoot(root_path_, xuid, content_type) / xuid_str / title_id_str / content_type_str;
+@@ -135,2 +150,2 @@ std::filesystem::path ContentManager::ResolvePackageHeaderPath(const std::string
+-  return root_path_ / xuid_str / title_id_str / kGameContentHeaderDirName / content_type_str /
+-         final_name;
++  return ContentRoot(root_path_, xuid, content_type) / xuid_str / title_id_str /
++         kGameContentHeaderDirName / content_type_str / final_name;

@@ -448,3 +448,19 @@ scale settings and CLI overrides remain intact and can override preset semantics
 Literal English options labels have no existing options.xus; future locale paths
 are listed in pc-options.md. Footer hints are hidden; XuiBackButton has visible
 Back text for mouse use, retaining the native controller PressKey 22593.
+
+## DLC (Marketplace content, 2026-10-17)
+
+- Packages: Four-Play Pack `E4DDBC100F97B6954B84E82ED807E79B5A4314C04D` (agents 9-12: `Agents.txt`,
+  `FullCity_DLCAgents.dff`, `Streaming/FullCity_DLCAgents.resblock`, `XUIFrontEnd/Scene.xzp`) and Free-For-All Pack
+  `AA10729E62721B4EAF674486684E31CD9B94AC4F4D` (41 files: Keys to the City cheats `Save/Cheat Mode.sav`, street racing,
+  `fullcity_0200_DLC`, audio, `Digest2.txt`, `Capabilities.txt` = 3). Both read-only LIVE STFS, title 4D5307DC, type 2.
+- The game enumerates type-2 content, mounts each pack (`save0:`/`save1:`), reads `packageinfo.bin` (absent),
+  `Digest.txt` (MD5 per file) and `local\<lang>\xuifrontend\scene.xzp`. A pack without `Digest.txt` is unmounted.
+  Logs `crackdown_118.log`, `crackdown_121.log` (trace): Four-Play stays mounted and `save1:\Streaming` is read
+  at the city load; Free-For-All fails on `save0:\Digest.txt` and is unmounted.
+- The disc XEX has the UTF-16 strings `Digest.txt` (0xE5730 in `out/ap-discovery/guest-image.bin`, next to
+  `Validate.cpp`), `Capabilities.txt` (0xC7E20, next to `SG_X_cDLC.cpp`) and `Agents.txt`, but no `Digest2.txt`,
+  `Scene_CommonDLC` or `Street Racing`: Free-For-All needs the title update released with it (May 2007).
+- Install layout: `<dlc_root>/0000000000000000/4D5307DC/00000002/<pkg>/` + `Headers/00000002/<pkg>.header`
+  (SDK patch 0021 adds `--dlc_root`; the launcher passes the base user folder and unpacks with `install_dlc`).
