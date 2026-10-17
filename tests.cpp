@@ -1,5 +1,6 @@
 #include "core.h"
 #include "platform.h"
+#include "TinySHA1.hpp"
 #include <array>
 #include <algorithm>
 #include <cstdlib>
@@ -26,6 +27,39 @@ void put16(std::vector<unsigned char>& b,size_t p,uint16_t n) { b.at(p)=n&255; b
 void entry(std::vector<unsigned char>& b,size_t p,const std::string& name,uint32_t sector,uint32_t size,bool dir=false) {
   put32(b,p+4,sector); put32(b,p+8,size); b.at(p+12)=dir?0x10:0; b.at(p+13)=static_cast<unsigned char>(name.size());
   std::copy(name.begin(),name.end(),b.begin()+p+14);
+}
+// A read-only LIVE package: header, one level-0 hash table, then the file table and file blocks.
+std::vector<unsigned char> stfs_fixture(uint32_t title,const std::vector<std::pair<std::string,std::string>>& files) {
+  std::vector<unsigned char> b(0x2000);
+  std::copy_n("LIVE",4,b.begin());
+  auto be=[&](size_t p,uint32_t n,int bytes) { for(int i=0;i<bytes;++i) b.at(p+i)=static_cast<unsigned char>(n>>(8*(bytes-1-i))); };
+  be(0x340,0x1000,4); be(0x344,2,4); be(0x360,title,4);
+  be(0x22C,0xFFFFFFFF,4); be(0x230,0xFFFFFFFF,4); be(0x234,1,4); be(0x238,1,4);  // license 1, active
+  const std::string title_text="Test Pack"; for(size_t i=0;i<title_text.size();++i) be(0x411+2*i,static_cast<unsigned char>(title_text[i]),2);
+  b[0x379]=0x24; b[0x37B]=1; b[0x37C]=1;  // read-only, one file-table block at block 0
+  std::vector<std::string> blocks(1,std::string(0x1000,'\0'));
+  for(size_t f=0;f<files.size();++f) {
+    const auto& [name,data]=files[f]; uint32_t start=static_cast<uint32_t>(blocks.size());
+    for(size_t off=0;off<data.size();off+=0x1000) { auto chunk=data.substr(off,0x1000); chunk.resize(0x1000,'\0'); blocks.push_back(chunk); }
+    auto& e=blocks[0]; size_t p=f*0x40; std::copy(name.begin(),name.end(),e.begin()+p);
+    e[p+0x28]=static_cast<char>(name.size()); uint32_t n=static_cast<uint32_t>(blocks.size())-start;
+    for(int i=0;i<3;++i) { e[p+0x29+i]=static_cast<char>(n>>(8*i)); e[p+0x2C+i]=static_cast<char>(n>>(8*i)); e[p+0x2F+i]=static_cast<char>(start>>(8*i)); }
+    e[p+0x32]=char(0xFF); e[p+0x33]=char(0xFF);
+    for(int i=0;i<4;++i) e[p+0x34+i]=static_cast<char>(data.size()>>(8*(3-i)));
+  }
+  be(0x1C+0x379,static_cast<uint32_t>(blocks.size()),4);
+  for(size_t i=0;i<blocks.size();++i) {
+    // A block chains to the next one unless it is the file table or the last block of a file.
+    uint32_t next=0xFFFFFF;
+    if(i>0&&i+1<blocks.size()) {
+      size_t start=1; for(const auto& [n,d]:files) { size_t count=(d.size()+0xFFF)/0x1000; if(i>=start&&i+1<start+count) next=static_cast<uint32_t>(i+1); start+=count; }
+    }
+    sha1::SHA1 sha; sha.processBytes(blocks[i].data(),blocks[i].size()); sha1::SHA1::digest8_t digest; sha.finalize(digest);
+    std::copy_n(digest,20,b.begin()+0x1000+i*0x18);
+    be(0x1000+i*0x18+0x15,next,3);
+    b.insert(b.end(),blocks[i].begin(),blocks[i].end());
+  }
+  return b;
 }
 std::vector<unsigned char> fixture() {
   std::vector<unsigned char> b(44*2048);
@@ -152,14 +186,14 @@ int main(int argc,char** argv) {
     rejects([&]{install_image(home/"test.iso",home,manifest,cancel,{});},"never replace a game folder"); require(text(home/"game/keep")=="keep","owned folder retained");
     auto user=home/"user";
     auto default_args=profile_args(user,"");
-    require(list_profiles(user).empty() && default_args==std::vector<std::string>{"--user_data_root="+utf8(user),"--cache_root="+utf8(user/"cache")},"default roots explicit");
+    require(list_profiles(user).empty() && default_args==std::vector<std::string>{"--user_data_root="+utf8(user),"--cache_root="+utf8(user/"cache"),"--dlc_root="+utf8(user)},"default roots explicit");
     require(profile_args(fs::relative(user),"")==default_args,"relative root normalized to absolute");
     for(const auto& n:{"","..",".hidden","a/b","CON","$SystemUpdate","this name is far too long for a save profile folder"}) require(!valid_profile_name(n),"bad profile name rejected");
     create_profile(user,"Seed 42"); create_profile(user,"alpha");
     rejects([&]{create_profile(user,"seed 42");},"duplicate profile (case-insensitive)");
     require(list_profiles(user)==std::vector<std::string>{"alpha","Seed 42"},"profiles listed in order");
     auto pargs=profile_args(user,"Seed 42");
-    require(pargs.size()==2 && pargs[0]=="--user_data_root="+utf8(user/"profiles"/"Seed 42") && pargs[1]=="--cache_root="+utf8(user/"cache"),"profile arguments share the cache");
+    require(pargs.size()==3 && pargs[0]=="--user_data_root="+utf8(user/"profiles"/"Seed 42") && pargs[1]=="--cache_root="+utf8(user/"cache") && pargs[2]=="--dlc_root="+utf8(user),"profile arguments share the cache and DLC");
     rejects([&]{profile_args(user,"missing");},"unknown profile");
     std::error_code link_error;
     fs::create_directory_symlink(user,user/"profiles"/"Linked",link_error);
@@ -174,7 +208,7 @@ int main(int argc,char** argv) {
       require(list_profiles(user).empty(),"linked parent not listed");
       fs::remove(user/"profiles"); fs::rename(user/"real-profiles",user/"profiles");
       auto redirected=home/"redirected-user"; fs::create_directory_symlink(user,redirected);
-      require(profile_args(redirected,"Seed 42").size()==2,"redirected Documents root allowed");
+      require(profile_args(redirected,"Seed 42").size()==3,"redirected Documents root allowed");
       fs::remove(redirected);
     } else std::cout<<"SKIP profile links: "<<link_error.message()<<'\n';
     auto seed=profile_folder(user,"Seed 42");
@@ -231,6 +265,27 @@ int main(int argc,char** argv) {
     require(redacted_config(home/"broken.toml").find("secret2")==std::string::npos,"unparsable settings left out");
     { std::ofstream(seed/"archipelago"/"session.toml")<<"format = 2\nseed = \"31315\"\nslot = 2\n"; }
     require(ap_binding(seed)=="seed 31315, slot 2","AP binding shown from the game's sidecar");
+    {
+      std::atomic_bool no=false; auto dlc_user=home/"dlc-user";
+      auto save=[&](const char* file,const std::vector<unsigned char>& data) { std::ofstream(home/file,std::ios::binary).write(reinterpret_cast<const char*>(data.data()),static_cast<std::streamsize>(data.size())); };
+      std::string big(5000,'x'); big[4999]='y';
+      const char* name="E4DDBC100F97B6954B84E82ED807E79B5A4314C04D";
+      save(name,stfs_fixture(0x4D5307DC,{{"Agents.txt","8\n"},{"Big.bin",big}}));
+      auto package=stfs_fixture(0x4D5307DC,{});  // file table block is all zeros: check against a known SHA-1
+      const unsigned char zero_sha1[]={0x1c,0xea,0xf7,0x3d,0xf4,0x0e,0x53,0x1d,0xf3,0xbf,0xb2,0x6b,0x4f,0xb7,0xcd,0x95,0xfb,0x7b,0xff,0x1d};
+      require(std::equal(zero_sha1,zero_sha1+20,package.begin()+0x1000),"package block hashes are real SHA-1");
+      auto pack=install_dlc(home/name,dlc_user,no);
+      auto dlc=dlc_user/"0000000000000000"/"4D5307DC";
+      require(pack.title=="Test Pack" && text(dlc/"00000002"/name/"Agents.txt")=="8\n" && text(dlc/"00000002"/name/"Big.bin")==big,"DLC files unpacked across blocks");
+      require(fs::file_size(dlc/"Headers"/"00000002"/(std::string(name)+".header"))==0x148+4,"DLC header carries the license");
+      auto listed=list_dlc(dlc_user); require(listed.size()==1 && listed[0].title=="Test Pack","installed DLC listed");
+      install_dlc(home/name,dlc_user,no); require(list_dlc(dlc_user).size()==1,"reinstall replaces");
+      save("other",stfs_fixture(0x12345678,{{"a.txt","a"}})); rejects([&]{install_dlc(home/"other",dlc_user,no);},"other title refused");
+      save("ffa",stfs_fixture(0x4D5307DC,{{"Digest2.txt","d"}})); rejects([&]{install_dlc(home/"ffa",dlc_user,no);},"title-update pack refused");
+      auto bad=stfs_fixture(0x4D5307DC,{{"a.txt","abc"}}); bad[0x3000]^=1; save("damaged",bad);
+      rejects([&]{install_dlc(home/"damaged",dlc_user,no);},"hash mismatch refused");
+      require(!fs::exists(dlc/"00000002"/"damaged") && list_dlc(dlc_user).size()==1,"failed install leaves nothing");
+    }
     auto unicode_user=home/fs::path(u8"Documents \u00e9"); create_profile(unicode_user,"Seed#1%");
     auto unicode_args=profile_args(unicode_user,"Seed#1%");
     require(unicode_args[0]=="--user_data_root="+utf8(unicode_user/"profiles"/"Seed#1%"),"Unicode save root arguments");
