@@ -463,4 +463,4 @@ Back text for mouse use, retaining the native controller PressKey 22593.
   `Validate.cpp`), `Capabilities.txt` (0xC7E20, next to `SG_X_cDLC.cpp`) and `Agents.txt`, but no `Digest2.txt`,
   `Scene_CommonDLC` or `Street Racing`: Free-For-All needs the title update released with it (May 2007).
 - Install layout: `<dlc_root>/0000000000000000/4D5307DC/00000002/<pkg>/` + `Headers/00000002/<pkg>.header`
-  (SDK patch 0021 adds `--dlc_root`; the launcher passes the base user folder and unpacks with `install_dlc`).
+  (SDK patch 0024 adds `--dlc_root`; the launcher passes the base user folder and unpacks with `install_dlc`).
