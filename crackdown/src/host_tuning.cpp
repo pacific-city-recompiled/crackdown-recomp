@@ -27,6 +27,7 @@
 // (blown out). Release pan bench 84.2 -> 94.4 fps avg, 1% low 15.3 -> 13.8 ms.
 
 #include "host_tuning.h"
+#include "game_addresses.h"
 
 #include <string>
 #include <string_view>
@@ -252,7 +253,7 @@ REXCVAR_DEFINE_INT32(sim_hz, 0, "Crackdown",
     .range(0, 240);
 
 void ApplySimRate(rex::memory::Memory* memory) {
-  constexpr uint32_t kStepConstantAddress = 0x820ED704;
+  constexpr uint32_t kStepConstantAddress = CD_ADDR(0x820ED704, 0x820F8084);
   int32_t hz = REXCVAR_GET(sim_hz);
   const bool game_clock = REXCVAR_GET(sim_game_clock);
   if (hz > 0 && (game_clock || REXCVAR_GET(sim_variable_step))) {
@@ -289,7 +290,7 @@ void ApplySimRate(rex::memory::Memory* memory) {
 }
 
 void ApplyFpsCap(rex::memory::Memory* memory) {
-  constexpr uint32_t kFrameCapAddress = 0x82BAA330;
+  constexpr uint32_t kFrameCapAddress = CD_ADDR(0x82BAA330, 0x82C3A9A4);
   const int32_t cap = REXCVAR_GET(fps_cap);
   if (cap <= 0 || !memory) {
     return;

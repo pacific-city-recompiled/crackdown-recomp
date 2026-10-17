@@ -8,4 +8,4 @@ game_root = "../out/tu-probe/game-tu"
 [entrypoint]
 file_path = "../out/tu-probe/game-tu/Default.xex"
 out_directory_path = "generated/default"
-includes = ["config/tu_functions.toml", "config/gapfill.toml"]
+includes = ["config/tu_functions.toml", "config/gapfill.toml", "config/midasm_hooks.toml"]

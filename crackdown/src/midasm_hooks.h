@@ -7,6 +7,8 @@
 
 #include <rex/ppc/context.h>
 
+#include "game_addresses.h"
+
 double CrackdownMeasuredStepSeconds();
 void CrackdownAudioTimeoutTick(PPCRegister& elapsed, PPCRegister& instance);
 
@@ -17,7 +19,16 @@ void CrackdownAudioTimeoutTick(PPCRegister& elapsed, PPCRegister& instance);
   X(0, 82287170) X(1, 82388E74) X(2, 823F0EB4) X(3, 8248F254)                \
   X(4, 824F9CF8) X(5, 824FB3E4) X(6, 82505ED0) X(7, 8257AAE8)                \
   X(8, 8259A3A8) X(9, 825E120C) X(10, 82651768) X(11, 826517CC)              \
-  X(12, 826A78F4)
+  X(12, 826A78F4) CRACKDOWN_FRAME_MS_SITES_TU(X)
+
+// Names keep the disc address; crackdown_tu/config/midasm_hooks.toml places them at the update's
+// addresses. The update has one more inlined frame-ms choice (0x82559004, `li r10,33`), next to
+// the disc's 0x824F9CF8/0x824FB3E4 pair.
+#if CRACKDOWN_TU
+#define CRACKDOWN_FRAME_MS_SITES_TU(X) X(13, TU_82559004)
+#else
+#define CRACKDOWN_FRAME_MS_SITES_TU(X)
+#endif
 
 #define CRACKDOWN_DECLARE_FRAME_MS(bit, addr) void CrackdownFrameMs_##addr(PPCRegister& r);
 CRACKDOWN_FRAME_MS_SITES(CRACKDOWN_DECLARE_FRAME_MS)

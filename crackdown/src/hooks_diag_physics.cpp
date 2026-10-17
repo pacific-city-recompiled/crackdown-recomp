@@ -17,6 +17,7 @@
 // first 5 calls of each function, then every 600th call.
 
 #include "generated/default/crackdown_init.h"
+#include "game_addresses.h"
 
 #include <atomic>
 #include <bit>
@@ -65,7 +66,7 @@ REXCVAR_DEFINE_DOUBLE(diag_char_speed, 9.0, "Crackdown",
                       "exceeds this (m/s)");
 
 namespace {
-constexpr uint32_t kStepConstantAddress = 0x820ED704;
+constexpr uint32_t kStepConstantAddress = CD_ADDR(0x820ED704, 0x820F8084);
 
 void LogStep(const char* name, std::atomic<uint32_t>& calls, PPCContext& ctx, uint8_t* base) {
   if (!REXCVAR_GET(diag_physics_dt)) {
@@ -88,24 +89,24 @@ std::atomic<uint32_t> g_calls_37d0, g_calls_6b40, g_calls_9ae8, g_calls_8a48, g_
     g_calls_a828;
 }  // namespace
 
-REX_HOOK_RAW(sub_8299B808) {
+CD_HOOK_RAW(CD_SUB(8299B808, 82A24728)) {
   LogStep("sub_8299B808", g_calls_b808, ctx, base);
-  __imp__sub_8299B808(ctx, base);
+  CD_IMP(8299B808, 82A24728)(ctx, base);
 }
 
-REX_HOOK_RAW(sub_8299EFB8) {
+CD_HOOK_RAW(CD_SUB(8299EFB8, 82A27EA0)) {
   LogStep("sub_8299EFB8", g_calls_efb8, ctx, base);
-  __imp__sub_8299EFB8(ctx, base);
+  CD_IMP(8299EFB8, 82A27EA0)(ctx, base);
 }
 
-REX_HOOK_RAW(sub_829BD048) {
+CD_HOOK_RAW(CD_SUB(829BD048, 82A45FF8)) {
   LogStep("sub_829BD048", g_calls_d048, ctx, base);
-  __imp__sub_829BD048(ctx, base);
+  CD_IMP(829BD048, 82A45FF8)(ctx, base);
 }
 
-REX_HOOK_RAW(sub_829BE628) {
+CD_HOOK_RAW(CD_SUB(829BE628, 82A475D8)) {
   LogStep("sub_829BE628", g_calls_e628, ctx, base);
-  __imp__sub_829BE628(ctx, base);
+  CD_IMP(829BE628, 82A475D8)(ctx, base);
 }
 
 // Havok entry points the game's character/vehicle code calls with a float in
@@ -115,13 +116,17 @@ REX_HOOK_RAW(sub_829BE628) {
 // per character, and 0x82986B40 with f1 from the stack. The stairs bug at 60 fps
 // survives a correct world step, so look for a character/vehicle step that
 // stays at 1/30.
-#define CRACKDOWN_DIAG_F1_HOOK(fn, counter)     REX_HOOK_RAW(fn) {                              LogStep(#fn, counter, ctx, base);             __imp__##fn(ctx, base);                     }
-CRACKDOWN_DIAG_F1_HOOK(sub_829D37D0, g_calls_37d0)
-CRACKDOWN_DIAG_F1_HOOK(sub_82986B40, g_calls_6b40)
-CRACKDOWN_DIAG_F1_HOOK(sub_829D9AE8, g_calls_9ae8)
-CRACKDOWN_DIAG_F1_HOOK(sub_82988A48, g_calls_8a48)
-CRACKDOWN_DIAG_F1_HOOK(sub_82989568, g_calls_9568)
-CRACKDOWN_DIAG_F1_HOOK(sub_8298A828, g_calls_a828)
+#define CRACKDOWN_DIAG_F1_HOOK(disc, tu, counter)  \
+  CD_HOOK_RAW(CD_SUB(disc, tu)) {                   \
+    LogStep("sub_" #disc, counter, ctx, base);      \
+    CD_IMP(disc, tu)(ctx, base);                    \
+  }
+CRACKDOWN_DIAG_F1_HOOK(829D37D0, 82A5C778, g_calls_37d0)
+CRACKDOWN_DIAG_F1_HOOK(82986B40, 82A0FA90, g_calls_6b40)
+CRACKDOWN_DIAG_F1_HOOK(829D9AE8, 82A62A90, g_calls_9ae8)
+CRACKDOWN_DIAG_F1_HOOK(82988A48, 82A11988, g_calls_8a48)
+CRACKDOWN_DIAG_F1_HOOK(82989568, 82A124A8, g_calls_9568)
+CRACKDOWN_DIAG_F1_HOOK(8298A828, 82A13700, g_calls_a828)
 #undef CRACKDOWN_DIAG_F1_HOOK
 
 // hkCharacterProxy::integrateWithCollectors (Havok utilities linked into the
@@ -247,23 +252,23 @@ void MaybeTeleport(PPCContext& ctx, uint8_t* base, uint32_t controller) {
   const PPCContext saved = ctx;
   ctx.r3.u64 = proxy;
   ctx.r4.u64 = pos;
-  sub_829D3560(ctx, base);
+  CD_SUB(829D3560, 82A5C510)(ctx, base);
   ctx = saved;
   REXLOG_INFO("teleport: controller {:08X} proxy {:08X} -> ({:.3f} {:.3f} {:.3f})", controller, proxy, v[0],
               v[1], v[2]);
 }
 }  // namespace
 
-REX_HOOK_RAW(sub_822A9E78) {
+CD_HOOK_RAW(CD_SUB(822A9E78, 822D27A0)) {
   MaybeTeleport(ctx, base, ctx.r3.u32);
-  __imp__sub_822A9E78(ctx, base);
+  CD_IMP(822A9E78, 822D27A0)(ctx, base);
 }
 
-REX_HOOK_RAW(sub_822BF268) {
+CD_HOOK_RAW(CD_SUB(822BF268, 822ED748)) {
   crackdown::NoteCharacterUpdate();
   if (!REXCVAR_GET(diag_char_proxy)) {
     const uint32_t proxy = ctx.r3.u32;
-    __imp__sub_822BF268(ctx, base);
+    CD_IMP(822BF268, 822ED748)(ctx, base);
     if (REXCVAR_GET(diag_vehicle)) {
       NoteCharacterPosition(LoadVec4(base, REX_LOAD_U32(REX_LOAD_U32(proxy + 48) + 28) + 48));
     }
@@ -288,7 +293,7 @@ REX_HOOK_RAW(sub_822BF268) {
       }
     }
   }
-  __imp__sub_822BF268(ctx, base);
+  CD_IMP(822BF268, 822ED748)(ctx, base);
   const Vec4 v_out = LoadVec4(base, proxy + 16);
   const Vec4 pos = LoadVec4(base, REX_LOAD_U32(REX_LOAD_U32(proxy + 48) + 28) + 48);
   NoteCharacterPosition(pos);
@@ -435,9 +440,9 @@ void MaybeTeleportVehicle(uint8_t* base, uint32_t vehicle) {
 }
 }  // namespace
 
-REX_HOOK_RAW(sub_824A1708) {
+CD_HOOK_RAW(CD_SUB(824A1708, 824F4600)) {
   if (!REXCVAR_GET(diag_vehicle)) {
-    __imp__sub_824A1708(ctx, base);
+    CD_IMP(824A1708, 824F4600)(ctx, base);
     return;
   }
   const uint32_t vehicle = ctx.r3.u32;
@@ -447,7 +452,7 @@ REX_HOOK_RAW(sub_824A1708) {
   }
   const float dt = std::bit_cast<float>(REX_LOAD_U32(ctx.r4.u32 + 8));
   const uint32_t lr = static_cast<uint32_t>(ctx.lr);
-  __imp__sub_824A1708(ctx, base);
+  CD_IMP(824A1708, 824F4600)(ctx, base);
   const uint32_t entity = REX_LOAD_U32(vehicle + 24);
   const uint32_t chassis = REX_LOAD_U32(vehicle + 68);
   const uint32_t motion = entity ? REX_LOAD_U32(entity + 80) : 0;

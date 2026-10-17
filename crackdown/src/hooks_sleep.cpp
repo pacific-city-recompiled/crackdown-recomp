@@ -31,6 +31,7 @@
 // threads to reach a check, and a cap of 1 means a 1000 ms limiter sleep).
 
 #include "generated/default/crackdown_init.h"
+#include "game_addresses.h"
 
 #include <algorithm>
 #include <chrono>
@@ -61,9 +62,9 @@ REXCVAR_DEFINE_BOOL(diag_sleep, false, "Crackdown",
 namespace {
 using Clock = std::chrono::steady_clock;
 
-constexpr uint32_t kFrameCapAddr = 0x82BAA330;
-constexpr uint32_t kLimiterReturnA = 0x826A6834;  // sub_826A65F0
-constexpr uint32_t kLimiterReturnB = 0x826A78DC;  // sub_826A7698
+constexpr uint32_t kFrameCapAddr = CD_ADDR(0x82BAA330, 0x82C3A9A4);
+constexpr uint32_t kLimiterReturnA = CD_ADDR(0x826A6834, 0x8272E9E4);  // sub_826A65F0
+constexpr uint32_t kLimiterReturnB = CD_ADDR(0x826A78DC, 0x8272FA04);  // sub_826A7698
 // The limiter never asks for more than 1000 / 1 ms; anything longer keeps the stock path.
 constexpr uint32_t kPreciseMaxMs = 1000;
 constexpr auto kSpinTail = std::chrono::microseconds(1000);
@@ -155,7 +156,7 @@ void RecordDiag(uint32_t caller, uint32_t requested_ms, double took_ms, Clock::t
 }
 }  // namespace
 
-REX_HOOK_RAW(sub_82743788) {
+CD_HOOK_RAW(CD_SUB(82743788, 827CCB08)) {
   using rex::system::XThread;
 
   const uint32_t ms = ctx.r3.u32;
@@ -173,10 +174,10 @@ REX_HOOK_RAW(sub_82743788) {
       // Sleep whatever is left on the stock path (it does its own termination checks).
       const auto left = std::chrono::ceil<std::chrono::milliseconds>(deadline - Clock::now());
       ctx.r3.u64 = static_cast<uint64_t>(std::max<int64_t>(left.count(), 0));
-      __imp__sub_82743788(ctx, base);
+      CD_IMP(82743788, 827CCB08)(ctx, base);
     }
   } else {
-    __imp__sub_82743788(ctx, base);
+    CD_IMP(82743788, 827CCB08)(ctx, base);
   }
 
   if (diag) {

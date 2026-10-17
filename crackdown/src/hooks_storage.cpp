@@ -28,6 +28,7 @@
 // set; loaders keep streaming from game:\.
 
 #include "generated/default/crackdown_init.h"
+#include "game_addresses.h"
 #include "midasm_hooks.h"
 
 #include <rex/hook.h>
@@ -37,9 +38,9 @@ namespace {
 constexpr uint32_t kErrorDeviceNotConnected = 1167;  // ERROR_DEVICE_NOT_CONNECTED
 }  // namespace
 
-REX_HOOK_RAW(sub_827457E8) {
+CD_HOOK_RAW(CD_SUB(827457E8, 827CECB8)) {
   (void)base;
-  REXKRNL_INFO("XMountUtilityDrive (0x827457E8) -> no utility drive; streaming from game:");
+  REXKRNL_INFO("XMountUtilityDrive -> no utility drive; streaming from game:");
   ctx.r3.u64 = kErrorDeviceNotConnected;
 }
 
