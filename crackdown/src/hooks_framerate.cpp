@@ -40,6 +40,7 @@
 // the step constant gets the same value (ms / 1000), so both clocks agree.
 
 #include "generated/default/crackdown_init.h"
+#include "game_addresses.h"
 
 #include "ap/bridge.h"
 #include "midasm_hooks.h"
@@ -84,12 +85,12 @@ REXCVAR_DECLARE(bool, diag_char_proxy);
 REXCVAR_DEFINE_STRING(frame_log, "", "Crackdown",
                       "Benchmark: write each guest frame's host time (frame_time_us, one row per "
                       "frame, tools/frametimes.py reads it) to this CSV; works in Release builds");
-REXCVAR_DEFINE_INT32(sim_game_clock_sites, 0x1FFF, "Crackdown",
+REXCVAR_DEFINE_INT32(sim_game_clock_sites, CD_ADDR(0x1FFF, 0x3FFF), "Crackdown",
                      "Experimental: bitmask of the 33 ms sites --sim_game_clock rewrites "
                      "(bit order as in config/midasm_hooks.toml); for bisecting");
 
 namespace {
-constexpr uint32_t kStepConstantAddress = 0x820ED704;
+constexpr uint32_t kStepConstantAddress = CD_ADDR(0x820ED704, 0x820F8084);
 constexpr uint32_t kLockedFrameMs = 33;
 constexpr double kMinStep = 1.0 / 240.0;
 constexpr double kMaxStep = 1.0 / 20.0;
@@ -105,9 +106,9 @@ std::atomic<float> g_step_scale{1.0f};
 // This frame's step in seconds (1/30 until the first measured frame).
 std::atomic<float> g_step{1.0f / 30.0f};
 double g_counter_carry = 0.0;
-constexpr uint32_t kClockPointerAddress = 0x82DE25C0;
-constexpr uint32_t kAnimStepAddress = 0x820ED7CC;   // 1/30, read only by sub_82330888
-constexpr uint32_t kTimerStepAddress = 0x82CFF2B4;  // 0.033, read only by sub_823FF3B8
+constexpr uint32_t kClockPointerAddress = CD_ADDR(0x82DE25C0, 0x82E79A14);
+constexpr uint32_t kAnimStepAddress = CD_ADDR(0x820ED7CC, 0x820F8154);   // 1/30, read only by sub_82330888
+constexpr uint32_t kTimerStepAddress = CD_ADDR(0x82CFF2B4, 0x82D927E0);  // 0.033, read only by sub_823FF3B8
 
 // The flags are read once, at the first hook call (the guest starts after
 // ApplyGameDefaults has set them). The hooks rewrite guest literals and keep
@@ -233,7 +234,7 @@ static void PaceFrame() {
   deadline += period;
 }
 
-REX_HOOK_RAW(sub_826A7698) {
+CD_HOOK_RAW(CD_SUB(826A7698, 8272F7C0)) {
   PaceFrame();
   LogFrameTime();
   CountFrame();
@@ -263,8 +264,10 @@ REX_HOOK_RAW(sub_826A7698) {
     }
     g_last_frame = now;
   }
-  __imp__sub_826A7698(ctx, base);
+  CD_IMP(826A7698, 8272F7C0)(ctx, base);
+#if !CRACKDOWN_TU  // the AP bridge is not ported to the title update yet
   crackdown::ap::OnFrame(ctx, base);  // AP bridge: queued network work + grants
+#endif
 }
 
 // The constant is the image's only 1/30, so it is also Havok's default
@@ -277,9 +280,9 @@ REX_HOOK_RAW(sub_826A7698) {
 // --sim_game_clock): physics got the right step (--diag_physics_dt), but
 // running down stairs still built up huge speed and cars hitting the bottom
 // of the stairs were wrecked instantly. Keep Havok's 1/30 there.
-REX_HOOK_RAW(sub_8298D618) {
+CD_HOOK_RAW(CD_SUB(8298D618, 82A16508)) {
   const uint32_t cinfo = ctx.r3.u32;
-  __imp__sub_8298D618(ctx, base);
+  CD_IMP(8298D618, 82A16508)(ctx, base);
   if (Sim().variable_step || Sim().game_clock) {
     constexpr uint32_t kOneThirtieth = 0x3D088889;  // 1/30, the image's literal
     const uint32_t got = REX_LOAD_U32(cinfo + 92);
@@ -298,15 +301,15 @@ REX_HOOK_RAW(sub_8298D618) {
 //   called only from sub_826A7698;
 // - the step query sub_8254C568, which with the clock locked returns
 //   [0x82C63578] * [0x820ED704] (the unlocked paths aren't used).
-REX_HOOK_RAW(sub_826A6B50) {
+CD_HOOK_RAW(CD_SUB(826A6B50, 8272ED00)) {
   if (Sim().step_literal) {
     ctx.f1.f64 = double(float(ctx.f1.f64) * g_step_scale.load(std::memory_order_relaxed));
   }
-  __imp__sub_826A6B50(ctx, base);
+  CD_IMP(826A6B50, 8272ED00)(ctx, base);
 }
 
-REX_HOOK_RAW(sub_8254C568) {
-  __imp__sub_8254C568(ctx, base);
+CD_HOOK_RAW(CD_SUB(8254C568, 825B7020)) {
+  CD_IMP(8254C568, 825B7020)(ctx, base);
   if (Sim().step_literal) {
     ctx.f1.f64 = double(float(ctx.f1.f64) * g_step_scale.load(std::memory_order_relaxed));
   }
@@ -317,10 +320,10 @@ REX_HOOK_RAW(sub_8254C568) {
 // clock is locked (+13) and not paused (+14). About a dozen functions use that
 // counter for frame deadlines (docs/60fps-audit.md), which expire twice as
 // fast at 60 fps. Re-advance it by the number of whole 30 Hz ticks elapsed.
-REX_HOOK_RAW(sub_82324938) {
+CD_HOOK_RAW(CD_SUB(82324938, 82358AD0)) {
   const uint32_t clock = REX_LOAD_U32(kClockPointerAddress);
   const uint32_t before = clock ? REX_LOAD_U32(clock + 16) : 0;
-  __imp__sub_82324938(ctx, base);
+  CD_IMP(82324938, 82358AD0)(ctx, base);
   if (!clock || !Sim().frame_counter_30hz || !Sim().game_clock) {
     return;
   }
@@ -351,11 +354,11 @@ REX_HOOK_RAW(sub_82324938) {
 // Dividing by max(dt, 1/30) instead gives the snap its 30 fps velocity, so it
 // covers the drop over the same time instead of in one 60 Hz frame. At 30 fps
 // (measured 33/34 ms frames included, see kGroundSnapMaxDt) nothing changes.
-REX_HOOK_RAW(sub_822B4D40) {
+CD_HOOK_RAW(CD_SUB(822B4D40, 822DB248)) {
   const uint32_t out = ctx.r5.u32;
   const float dt = float(ctx.f1.f64);
   const uint32_t before = REX_LOAD_U32(out + 4);
-  __imp__sub_822B4D40(ctx, base);
+  CD_IMP(822B4D40, 822DB248)(ctx, base);
   const uint32_t after = REX_LOAD_U32(out + 4);
   if (after == before) {
     return;  // no snap this step

@@ -25,6 +25,7 @@
 // memory anyway).
 
 #include "generated/default/crackdown_init.h"
+#include "game_addresses.h"
 
 #include <rex/hook.h>
 
@@ -32,7 +33,7 @@ namespace {
 constexpr uint32_t kXObjSignature = 0x52455800;  // "REX\0" at +8, host handle at +12
 }  // namespace
 
-REX_HOOK_RAW(sub_82A4FA70) {
+CD_HOOK_RAW(CD_SUB(82A4FA70, 821512C0)) {
   // Original guest-visible effects: r11 = 0, [r3+4] = 0, r3 unchanged.
   ctx.r11.s64 = 0;
   REX_STORE_U32(ctx.r3.u32 + 4, 0);
