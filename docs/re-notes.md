@@ -463,7 +463,7 @@ Back text for mouse use, retaining the native controller PressKey 22593.
   `Validate.cpp`), `Capabilities.txt` (0xC7E20, next to `SG_X_cDLC.cpp`) and `Agents.txt`, but no `Digest2.txt`,
   `Scene_CommonDLC` or `Street Racing`: Free-For-All needs the title update released with it (May 2007).
 - Install layout: `<dlc_root>/0000000000000000/4D5307DC/00000002/<pkg>/` + `Headers/00000002/<pkg>.header`
-  (SDK patch 0024 adds `--dlc_root`; the launcher passes the base user folder and unpacks with `install_dlc`).
+  (SDK patch 0025 adds `--dlc_root`; the launcher passes the base user folder and unpacks with `install_dlc`).
 - Title update (2026-10-17): `TU_16L61US_0000004000000.00000000001G1` is "Crackdown Title Update #6" (STFS LIVE, type
   000B0000, media 596F9615, sha256 3c544a98...28a1): `Default.xexp` + `Local/<lang>/GameStrings_DLC.str`. The SDK
   applies a sibling `Default.xexp` at load (`UserModule::LoadFromFile`), in codegen too: base 0.0.0.1 -> 0.0.6.1,
