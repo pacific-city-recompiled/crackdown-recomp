@@ -25,3 +25,6 @@ crackdown/bench/
 *.xus
 __pycache__/
 *.py[cod]
+
+# DLC packages (user-supplied, never commit)
+DLC/

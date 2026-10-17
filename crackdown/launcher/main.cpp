@@ -19,7 +19,7 @@
 
 using namespace launcher;
 namespace {
-struct Picker { std::mutex mutex; std::optional<fs::path> picked; bool folder=false; bool pending=false; std::string error; };
+struct Picker { std::mutex mutex; std::optional<fs::path> picked; bool folder=false,dlc=false; bool pending=false; std::string error; };
 void SDLCALL picked(void* data,const char* const* files,int) {
   auto& p=*static_cast<Picker*>(data); std::lock_guard lock(p.mutex);
   if(!files) p.error=SDL_GetError(); else if(files[0]) p.picked=fs::u8path(files[0]);
@@ -61,6 +61,10 @@ int main(int argc,char** argv) {
       std::cout<<"Installed and fully verified "<<manifest.size()<<" files in "<<utf8(destination/"game")<<'\n';
       return 0;
     } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
+  }
+  if(argc==4 && std::string(argv[1])=="--install-dlc") {
+    try { std::atomic_bool cancel=false; auto pack=install_dlc(fs::u8path(argv[2]),fs::u8path(argv[3]),cancel); std::cout<<"Installed "<<pack.title<<" ("<<pack.file_name<<")\n"; return 0; }
+    catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
   }
   bool review=argc==5 && std::string(argv[1])=="--review-ui";
   fs::path review_dir;
@@ -113,6 +117,7 @@ int main(int argc,char** argv) {
   fs::file_time_type log_since{};
   CoopSettings coop; char coop_own[64]{},coop_partner[64]{}; std::string coop_error; std::vector<std::string> coop_addresses;
   fs::path user; bool portable=false; std::vector<std::string> profiles; std::string profile; char new_profile[48]{};
+  std::vector<DlcPack> dlc_packs;
   try {
     auto probe=home/(".launcher-write-"+std::to_string(SDL_GetTicks()));
     if(fs::exists(probe)) throw std::runtime_error("Write probe already exists");
@@ -156,7 +161,7 @@ int main(int argc,char** argv) {
     // game, which sees the same marker next to crackdown.exe, uses it too.
     portable=fs::is_regular_file(home/"portable.txt");
     user=fs::absolute(portable?home/"userdata":default_user_folder()).lexically_normal();
-    profiles=list_profiles(user); profile=value<std::string>(prefs,"profile","");
+    profiles=list_profiles(user); dlc_packs=list_dlc(user); profile=value<std::string>(prefs,"profile","");
     if(std::find(profiles.begin(),profiles.end(),profile)==profiles.end()) profile.clear();
   } catch(const std::exception& e) { error=e.what(); }
   // Archipelago settings belong to the selected (named) profile: one profile per seed.
@@ -326,7 +331,14 @@ int main(int argc,char** argv) {
     {
       std::lock_guard lock(picker.mutex);
       if(!picker.error.empty()) { error=picker.error; picker.error.clear(); }
+      if(picker.picked && picker.dlc) {
+        // Small packs (Four-Play is 9 MB) unpack in well under a second, so this runs inline.
+        try { std::atomic_bool keep=false; auto pack=install_dlc(*picker.picked,user,keep); dlc_packs=list_dlc(user); report="Installed "+pack.title+". Every save profile can use it."; error.clear(); }
+        catch(const std::exception& e) { error=e.what(); report.clear(); }
+        picker.picked.reset(); picker.dlc=false; focus_page=true;
+      }
       if(picker.picked) { visuals->clear_art(); begin(*picker.picked,picker.folder?Job::full_check:Job::import_iso); busy=true; picker.picked.reset(); error.clear(); tab=0; focus_page=true; }
+      if(!picker.pending) picker.dlc=false;  // a cancelled DLC pick must not claim the next ISO pick
     }
     if(busy && task.done) {
       task.thread.join(); busy=false;
@@ -545,6 +557,7 @@ int main(int argc,char** argv) {
         std::error_code marker_ec; portable=fs::is_regular_file(home/"portable.txt",marker_ec);
         user=fs::absolute(portable?local:documents).lexically_normal();
         try { profiles=list_profiles(user); } catch(const std::exception& e) { profiles.clear(); ok=false; error=e.what(); }
+        dlc_packs=list_dlc(user);
         if(std::find(profiles.begin(),profiles.end(),profile)==profiles.end()) {
           profile.clear();
           try { update_config(preferences,{{"profile",std::nullopt}}); } catch(const std::exception& e) { ok=false; error=e.what(); }
@@ -553,6 +566,17 @@ int main(int argc,char** argv) {
         if(ok) error.clear();
       }
       ImGui::EndDisabled(); ImGui::TextWrapped("%s",portable?"Saves are in userdata next to the launcher. Turning this off goes back to Documents\\crackdown; nothing is deleted.":"A new profile starts with no save: choose New Game. Profiles share the shader cache. Portable mode copies your saves next to the launcher and uses them from there.");
+      ImGui::Separator(); ImGui::TextUnformatted("DOWNLOADABLE CONTENT");
+      if(dlc_packs.empty()) ImGui::TextDisabled("No DLC installed.");
+      for(const auto& pack:dlc_packs) ImGui::BulletText("%s",pack.title.c_str());
+      ImGui::BeginDisabled(blocked||user.empty());
+      if(ImGui::Button("Install DLC package...")) {
+        { std::lock_guard lock(picker.mutex); picker.pending=true; picker.folder=false; picker.dlc=true; }
+        SDL_ShowOpenFileDialog(picked,&picker,window,nullptr,0,nullptr,false);
+      }
+      ImGui::EndDisabled();
+      ImGui::TextWrapped("Pick a pack from your Xbox 360 content (the file inside 4D5307DC\\00000002). It is unpacked once and every save profile uses it. The Free-For-All Pack (Keys to the City) needs the game's title update, which this port doesn't support yet.");
+      if(!report.empty()) ImGui::TextWrapped("%s",report.c_str());
     }
     if(tab==tab_ap) {
       bool named=!user.empty()&&!profile.empty();

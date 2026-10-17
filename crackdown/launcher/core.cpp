@@ -58,6 +58,7 @@ std::string hash_range(const fs::path& path, uint64_t off, uint64_t size, const 
   check_cancel(cancel);
   return hash.getHash();
 }
+}
 // Cleanup must not replace the error that caused it.
 void remove_quietly(const fs::path& path) { std::error_code ec; fs::remove_all(path, ec); }
 void no_links(const fs::path& path) {
@@ -75,10 +76,9 @@ fs::path checked_file(const fs::path& root, const std::string& relative) {
 }
 // $SystemUpdate is a console dashboard update the game never reads. Many dumps leave it out
 // (issue #15), so a folder without it still verifies; one that has it is still checked.
-bool optional_missing(const fs::path& folder, const Entry& e) {
+static bool optional_missing(const fs::path& folder, const Entry& e) {
   if (!lower(e.path).starts_with("$systemupdate/")) return false;
   std::error_code ec; return !fs::exists(checked_file(folder, e.path), ec);
-}
 }
 std::string utf8(const fs::path& path) { auto s = path.u8string(); return {s.begin(), s.end()}; }
 std::string hash_file(const fs::path& path, const std::atomic_bool* cancel, const std::function<void(uint64_t)>& hashed) {
@@ -350,7 +350,8 @@ fs::path profile_folder(const fs::path& user, const std::string& name) {
 }
 std::vector<std::string> profile_args(const fs::path& user, const std::string& name) {
   auto root=fs::absolute(user).lexically_normal();
-  return {"--user_data_root=" + utf8(profile_folder(user, name)), "--cache_root=" + utf8(root/"cache")};
+  return {"--user_data_root=" + utf8(profile_folder(user, name)), "--cache_root=" + utf8(root/"cache"),
+          "--dlc_root=" + utf8(root)};
 }
 static fs::path ap_folder(const fs::path& saves) { no_links(saves/"archipelago"); return saves/"archipelago"; }
 ApConnection load_ap_connection(const fs::path& saves) {

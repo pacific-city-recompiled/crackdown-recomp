@@ -18,6 +18,11 @@ std::string utf8(const fs::path& path);
 std::string hash_file(const fs::path& path, const std::atomic_bool* cancel = nullptr,
                       const std::function<void(uint64_t)>& hashed = {});
 bool safe_name(const std::string& name);
+// Throws for a symlink or (Windows) reparse point, so writes never follow one out of our folders.
+void no_links(const fs::path& path);
+// Cleanup must not replace the error that caused it.
+void remove_quietly(const fs::path& path);
+fs::path checked_file(const fs::path& root, const std::string& relative);
 std::vector<Entry> load_manifest(const fs::path& path);
 // Quick: every size, the XEX and files up to quick_hash_limit (startup, Play).
 // Full: every hash; run once after an import or folder selection, and on request.
@@ -61,7 +66,7 @@ std::vector<std::string> list_profiles(const fs::path& user);
 void create_profile(const fs::path& user, const std::string& name);
 // The profile's save folder (the game's user_data_root); throws if it is missing or a link.
 fs::path profile_folder(const fs::path& user, const std::string& name);
-// Always absolute save and shared cache arguments, including the default profile.
+// Always absolute save, shared cache and shared DLC arguments, including the default profile.
 std::vector<std::string> profile_args(const fs::path& user, const std::string& name);
 // Archipelago connection for one profile, in <profile>/archipelago/connection.toml beside the
 // game's session sidecar. Never in crackdown.toml, so "Copy system info" can't include the password;
@@ -95,6 +100,15 @@ CoopSettings load_coop(const toml::table& config);
 std::map<std::string, std::optional<std::string>> coop_changes(const CoopSettings& coop);
 // This PC's IPv4 addresses (home network, Tailscale), loopback left out.
 std::vector<std::string> local_ipv4_addresses();
+// DLC packs (Xbox LIVE packages for Crackdown, content type 00000002), unpacked once into
+// <user>/0000000000000000/4D5307DC/00000002/<package file name>/ with Headers/00000002/<name>.header
+// beside it, the layout the game's content manager mounts. Every profile reads them from there
+// (profile_args passes --dlc_root=<user>). The disc version can't load the Free-For-All Pack
+// (it needs the title update), so install_dlc refuses packs that carry Digest2.txt.
+struct DlcPack { std::string file_name, title; };
+std::vector<DlcPack> list_dlc(const fs::path& user);
+// Checks each block's SHA-1, unpacks into a staging folder and then replaces any earlier install.
+DlcPack install_dlc(const fs::path& package, const fs::path& user, const std::atomic_bool& cancel, Progress progress = {});
 // Keep the launcher API while using the same editor in the game.
 using crackdown::config::read_config;
 using crackdown::config::setting;
