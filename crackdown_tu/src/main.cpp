@@ -4,6 +4,10 @@
 
 #include "host_tuning.h"
 #include "input_replay.h"
+#include "pc_options.h"
+#include "pc_settings.h"
+#include "xui_patch.h"
+#include <rex/filesystem.h>
 
 // Mirrors crackdown/src/crackdown_app.h for the parts ported to the update so far.
 class CrackdownTuApp : public rex::ReXApp {
@@ -19,6 +23,15 @@ class CrackdownTuApp : public rex::ReXApp {
     crackdown::ApplySimRate(runtime()->memory());
     crackdown::ApplyFpsCap(runtime()->memory());
     crackdown::DumpGuestImage(runtime());
+    crackdown::PCSettings().Initialize(rex::filesystem::GetExecutableFolder() / "crackdown.toml",
+        rex::cvar::Query<bool>("vsync"), rex::cvar::Query<int32_t>("resolution_scale"),
+        rex::cvar::Query<bool>("fullscreen"));
+    crackdown::SetPCMenuQuitAction([this] {
+      return app_context().CallInUIThreadDeferred([this] {
+        if (window()) window()->RequestClose();
+      });
+    });
+    crackdown::PreparePCMenu(runtime(), game_data_root(), cache_root());
     crackdown::SetInputReplayQuit([this] {
       app_context().CallInUIThreadDeferred([this] { if (window()) window()->RequestClose(); });
     });

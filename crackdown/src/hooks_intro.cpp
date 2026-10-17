@@ -14,6 +14,7 @@
 // before adding them.
 
 #include "generated/default/crackdown_init.h"
+#include "game_addresses.h"
 #include "xui_patch.h"
 
 #include <algorithm>
@@ -67,7 +68,7 @@ bool EndsWith(std::string_view s, std::string_view suffix) {
 // "mr r3,r29", "bl 0x82742b28" opens it through this same CreateFileA.
 // Scene redirection is unverified at runtime (milestone 2). The standalone
 // menu redirect was confirmed on the PC 2026-10-12 (crackdown_002).
-REX_HOOK_RAW(sub_82742B28) {
+CD_HOOK_RAW(CD_SUB(82742B28, 827CBEA8)) {
   if (ctx.r3.u32) {
     const std::string path = GuestString(base, ctx.r3.u32);
     std::string canonical = path;
@@ -79,12 +80,12 @@ REX_HOOK_RAW(sub_82742B28) {
       if (replacement) {
         const PPCContext original = ctx;
         ctx.r3.u64 = replacement;
-        __imp__sub_82742B28(ctx, base);
+        CD_IMP(82742B28, 827CBEA8)(ctx, base);
         if (ctx.r3.u32 == 0xFFFFFFFF) {
           // Retry with all original arguments and disable both redirects/actions.
           crackdown::DisablePCMenu("patched package open failed");
           ctx = original;
-          __imp__sub_82742B28(ctx, base);
+          CD_IMP(82742B28, 827CBEA8)(ctx, base);
         } else {
           static std::atomic<bool> logged_menu{false}, logged_scene{false};
           auto& logged = menu ? logged_menu : logged_scene;
@@ -101,11 +102,11 @@ REX_HOOK_RAW(sub_82742B28) {
       REXLOG_INFO("intro: open {}{}", path, skip ? " -> skipped" : "");
       if (skip) {
         ctx.r3.u64 = kStatusObjectNameNotFound;
-        sub_82746010(ctx, base);  // SetLastError(RtlNtStatusToDosError(status))
+        CD_SUB(82746010, 827CF4E0)(ctx, base);  // SetLastError(RtlNtStatusToDosError(status))
         ctx.r3.s64 = -1;          // INVALID_HANDLE_VALUE
         return;
       }
     }
   }
-  __imp__sub_82742B28(ctx, base);
+  CD_IMP(82742B28, 827CBEA8)(ctx, base);
 }
