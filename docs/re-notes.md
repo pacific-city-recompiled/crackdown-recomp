@@ -464,3 +464,10 @@ Back text for mouse use, retaining the native controller PressKey 22593.
   `Scene_CommonDLC` or `Street Racing`: Free-For-All needs the title update released with it (May 2007).
 - Install layout: `<dlc_root>/0000000000000000/4D5307DC/00000002/<pkg>/` + `Headers/00000002/<pkg>.header`
   (SDK patch 0024 adds `--dlc_root`; the launcher passes the base user folder and unpacks with `install_dlc`).
+- Title update (2026-10-17): `TU_16L61US_0000004000000.00000000001G1` is "Crackdown Title Update #6" (STFS LIVE, type
+  000B0000, media 596F9615, sha256 3c544a98...28a1): `Default.xexp` + `Local/<lang>/GameStrings_DLC.str`. The SDK
+  applies a sibling `Default.xexp` at load (`UserModule::LoadFromFile`), in codegen too: base 0.0.0.1 -> 0.0.6.1,
+  XEX filetime 2009-10-09. TU codegen (out/tu-probe, 2 extra function starts 0x824D2920, 0x82AA6D90) succeeds with
+  42558 functions vs 42295. No function keeps its address (only 9689 match by instruction sequence, shifted by
+  0x88000-0x94000), so all 177 code and 34 data addresses our hooks use need re-finding. The base exe with the xexp
+  in its game folder dies at once: host init writes guest 0x82BAA330 (log crackdown_126).
