@@ -32,6 +32,23 @@ Decision (Austin, 2026-10-17): ship 1.0 on the disc XEX and start the title upda
 - Not trustworthy yet: tiny functions. 0x82A4FA70 (events hook, `li r11,0; stw r11,4(r3); blr`) mapped to
   0x821512C0 through the call graph, but that body is common; check its callers before using it.
 
+### Second pass (2026-10-17): `docs/tu-address-map.csv`
+
+- Matcher now adds a neighbor + fuzzy-diff pass (unmatched functions between two matched neighbors, best diff
+  ratio >= 0.6) and maps offsets inside changed functions by alignment: 31024 of 42295 functions (73%).
+- Every hook address is in `docs/tu-address-map.csv` with its evidence. 147 high (function diff ratio >= 0.85 and
+  a mapped caller agrees, or an independent check), 22 data by reference votes, 4 manual, 13 review, 8 open.
+- Independent check: the frame-ms `li rX,33` pattern finds 11 sites on the disc and 12 in the update. All 11
+  disc sites map to update sites that the matcher found too. The 12th (0x82559004) is new in the update.
+- Struct layouts changed, not just addresses: the character skill block moved from +9056 to +7104 (getter
+  0x822C1B10, slot 305 of the character vtable now at 0x8208FBE8), and the pickup manager field read after
+  the save call moved from +60 to +64. Every struct offset in `crackdown/src/ap/` must be re-derived.
+- The update adds two more pickup-manager load calls next to the disc's one (0x825B86F0, 0x825B87A0;
+  the disc's is 0x825B8748), likely for the DLC.
+- Open: the intro/XZP hooks 0x8261F740, 0x8261FC80, 0x82621990. The scene and VFS loaders were rewritten (best
+  candidates 0x826938E8 at ratio 0.32, 0x82694530 at 0.41), likely for `Scene_CommonDLC.xzp`. Data globals
+  0x82C63578, 0x82CFE4B4, 0x82D99228 (frame timing) and two diagnostics addresses still need mapping by use.
+
 ## REA
 
 REA cannot analyze this binary on this PC: its Windows Ghidra lane only takes native PE and raw 6502, and it
