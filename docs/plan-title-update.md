@@ -66,3 +66,19 @@ its Version Tracking could cross-check matches, but it has no VMX128, and our co
 4. Build a second target from the update (separate generated dir; the launcher picks it when `Default.xexp` is
    installed), then rerun the New Game, 60 fps and audio checks and the Free-For-All pack.
 5. Keep every new hook's disc and update addresses side by side so 1.0 changes carry over.
+
+## First update build (2026-10-17): Keys to the City runs
+
+- `crackdown_tu/` builds the update's code with only the two loading-screen hooks (events 0x821512C0, storage
+  0x827CECB8), input replay (disc hook file with its two addresses swapped at configure time) and the character
+  update marker (0x822ED748). `config/gapfill.toml` is the update's own gap scan (`tools/gapscan.sh` with
+  `REX=` set to the Windows rexglue.exe: 6 rounds, 1491 entries, 223 rejected, 0 unresolved). Without it the
+  update crashed after load on the pointer-only function 0x82AD3E48.
+- Game folder: `out/tu-probe/game-tu` (hardlinks to `game/` plus `Default.xexp` and the update's
+  `Local/<lang>/GameStrings_DLC.str`; the game folder is mounted read-only). Run with
+  `--update_data_root=out/tu-probe/stfs --dlc_root=out/tu-probe/dlc` (both packs installed).
+- PC runs (logs `crackdown_tu_003`..`009`): the game mounts both packs and keeps Free-For-All (only a debug
+  "Digest.txt not found" probe); the main menu lists Street Racing and Keys to the City; `bench/kttc.rec`
+  (Start, stick down x3, A x6) enters Keys to the City and plays 60 s in the city with no crash. The HUD shows
+  "Show keys to the city".
+- The intro logos are not skipped (no intro hook), so replays need a 40 s longer menu segment than disc ones.
