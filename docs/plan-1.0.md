@@ -141,6 +141,10 @@ page 12 higher. Re-check 4d: regenerate, rebuild, one screenshot (labels whole, 
 Also build `CrackdownLauncher.exe`: CONTROLS has "Camera turn speed" (0.25x-4.00x); 2.00x saves
 `camera_sensitivity = 2.00`, 1.00x removes it, and the game log then shows `camera_sensitivity: 2`.
 
+Re-check 4d (076c5e5): passed. Labels whole and clear of both rows, three-button rows inside the
+panel, Back on screen. Launcher "Camera turn speed" saves `camera_sensitivity = 2.00` (game log
+`camera_sensitivity: 2 (... top yaw rate 3 -> 6)`) and removes it at 1.00x. Mouse look not checked.
+
 ## PC task 5: camera turn speed (stick sensitivity)
 
 Austin finds the right-stick camera very slow at every frame rate, with no way to change it. Our input
