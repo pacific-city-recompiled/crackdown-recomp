@@ -111,6 +111,19 @@ int main(int argc,char** argv) {
     },xex); } catch(const std::exception& e) { cancellation=e.what(); }
     require(hashing && cancellation=="Cancelled","cancel during hashing"); cancel=false;
     rejects([&]{verify_folder(home/"folder",{{"default.xex",0,4,{}}},nullptr,Check::quick,{},xex);},"supported XEX wrong size");
+    { // A matching stamp skips the quick check's hashing; a changed file or a full check hashes again.
+      auto stamp=home/"verified-files.txt"; fs::remove(stamp);
+      require(verify_folder_cached(home/"folder",supported,stamp,nullptr,Check::quick,{},xex)==xex&&fs::exists(stamp),"stamp written");
+      unsigned reports=0; auto count=[&](uint64_t,uint64_t){++reports;};
+      require(verify_folder_cached(home/"folder",supported,stamp,nullptr,Check::quick,count,xex)==xex&&reports==0,"stamp skips hashing");
+      write(home/"folder/small.bin","wrong"); fs::last_write_time(home/"folder/small.bin",fs::last_write_time(home/"folder/small.bin")+std::chrono::seconds(5));
+      rejects([&]{verify_folder_cached(home/"folder",supported,stamp,nullptr,Check::quick,{},xex);},"changed file hashed again");
+      require(!fs::exists(stamp),"failed check leaves no stamp");
+      write(home/"folder/small.bin","small");
+      require(verify_folder_cached(home/"folder",supported,stamp,nullptr,Check::quick,{},xex)==xex,"stamp rewritten");
+      reports=0; require(verify_folder_cached(home/"folder",supported,stamp,nullptr,Check::full,count,xex)==xex&&reports>0,"full check ignores stamp");
+      fs::remove(stamp);
+    }
     auto staging=home/"game-install-1"; fs::create_directory(staging);
     require(unfinished_imports(home).empty(),"unmarked folder excluded");
     write(staging/".crackdown-import","garbage"); require(unfinished_imports(home).empty(),"invalid marker excluded");
