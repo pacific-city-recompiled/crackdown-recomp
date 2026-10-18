@@ -105,8 +105,9 @@ int main(int argc,char** argv) {
   fs::path config=home/"crackdown.toml", preferences=home/"launcher.toml";
   Task task; Picker picker; GameProcess process; std::vector<Entry> manifest;
   std::string error,report,hash,crash; fs::path game; bool verified=false,writable=true,close_on_play=false;
-  Changes changes; int scale=1,window_size=0,rate=0; [[maybe_unused]] int filter=0; bool fullscreen=true,mute=false;
+  Changes changes; int scale=1,window_size=0,rate=0,aa=0,aniso=2,aspect=0; [[maybe_unused]] int filter=0; bool fullscreen=true,mute=false;
   float mouse_sens=1.0f;
+  float camera_speed=1.0f;
   bool skip_intro=true,mnk=false,auto_updates=false,beta_channel=false,ask_updates=false;
   int monitor=0,language=1,tab=0; bool focus_page=true; std::string device="keyboard",input_backend="sdl";
   fs::file_time_type log_since{};
@@ -128,12 +129,17 @@ int main(int argc,char** argv) {
     fullscreen=value<bool>(t,"fullscreen",true); mute=value<bool>(t,"audio_mute",false);
     auto f=value<std::string>(t,"present_effect","bilinear"); filter=f=="cas"?1:f=="fsr"?2:0;
     rate=value<bool>(t,"vsync",false)?1:0;
+    auto ratio=value<std::string>(t,"aspect_ratio","16:9"); aspect=ratio=="16:10"?1:ratio=="21:9"?2:ratio=="32:9"?3:ratio=="4:3"?4:0;
+    auto post=value<std::string>(t,"swap_post_effect","none"); aa=post=="fxaa"?1:post=="fxaa_extreme"?2:0;
+    // anisotropic_override: -1 game's own, 2 = 2x, 3 = 4x (SDK default), 4 = 8x, 5 = 16x.
+    switch(value<int64_t>(t,"anisotropic_override",3)) { case -1: aniso=0; break; case 2: aniso=1; break; case 4: aniso=3; break; case 5: aniso=4; break; default: aniso=2; }
     auto width=value<int64_t>(t,"window_width",0); window_size=width==1280?1:width==1920?2:width==2560?3:0;
     language=static_cast<int>(value<int64_t>(t,"user_language",1)); if(language<1||language>10) language=1;
     skip_intro=value<bool>(t,"skip_intro_videos",true); mnk=value<bool>(t,"mnk_mode",false);
     mouse_sens=std::clamp(static_cast<float>(value<double>(t,"mnk_sensitivity",1.0)),0.1f,5.0f);
     coop=load_coop(t);
     std::snprintf(coop_own,sizeof(coop_own),"%s",coop.own_address.c_str()); std::snprintf(coop_partner,sizeof(coop_partner),"%s",coop.partner_address.c_str());
+    camera_speed=std::clamp(static_cast<float>(value<double>(t,"camera_sensitivity",1.0)),0.25f,4.0f);
     input_backend=value<std::string>(t,"input_backend","sdl"); monitor=std::clamp(static_cast<int>(value<int64_t>(t,"monitor",0)),0,16);
   } catch(const std::exception& e) { error=e.what(); }
   coop_addresses=local_ipv4_addresses();
@@ -193,7 +199,7 @@ int main(int argc,char** argv) {
           install_image(path,home,manifest,task.cancel,phase("Extracting game files..."),phase("Checking every extracted file..."));
           folder=home/"game"; check=Check::quick;
         }
-        auto h=verify_folder(folder,manifest,&task.cancel,check,phase(check==Check::full?"Checking every game file (one time)...":"Verifying game files..."));
+        auto h=verify_folder_cached(folder,manifest,home/"verified-files.txt",&task.cancel,check,phase(check==Check::full?"Checking every game file (one time)...":"Verifying game files..."));
         std::lock_guard lock(task.mutex); task.folder=fs::absolute(folder); task.hash=h; task.status="Game files verified"; task.success=true;
       } catch(const std::exception& e) { task.message(e.what()); }
       task.done=true;
@@ -262,7 +268,7 @@ int main(int argc,char** argv) {
     try {
       for(const char* key:kApConfigKeys) changes[key]=std::nullopt;
       update_config(config,changes); changes.clear();
-      hash=verify_folder(game,manifest); log_since=fs::file_time_type::clock::now();
+      hash=verify_folder_cached(game,manifest,home/"verified-files.txt"); log_since=fs::file_time_type::clock::now();
       auto args=profile_args(user,profile); args.insert(args.begin(),"--game_data_root="+utf8(game));
       // The game reads the password from the profile's connection.toml itself.
       if(!profile.empty()) save_ap();
@@ -428,21 +434,25 @@ int main(int argc,char** argv) {
       ImGui::BeginDisabled(blocked); if(tab!=4) focus_first(!blocked);
       if(tab==1) {
         if(ImGui::Checkbox("Fullscreen",&fullscreen)) changes["fullscreen"]=fullscreen?std::nullopt:std::optional<std::string>("false");
-        if(ImGui::Combo("Window size",&window_size,"Automatic\0 1280 x 720\0 1920 x 1080\0 2560 x 1440\0")) {
+        if(ImGui::Combo("Window size",&window_size,"Automatic\0" "1280 x 720\0" "1920 x 1080\0" "2560 x 1440\0")) {
           const int widths[]={0,1280,1920,2560}, heights[]={0,720,1080,1440}; changes["window_width"]=window_size?std::optional<std::string>(std::to_string(widths[window_size])):std::nullopt; changes["window_height"]=window_size?std::optional<std::string>(std::to_string(heights[window_size])):std::nullopt;
         }
         if(ImGui::SliderInt("Monitor (0 = system default)",&monitor,0,16)) changes["monitor"]=monitor?std::optional<std::string>(std::to_string(monitor)):std::nullopt;
         ImGui::TextDisabled("Game display settings take effect on the next Play.");
       }
       if(tab==2) {
-        int resolution=scale==2?1:0;
-        if(ImGui::Combo("Internal resolution",&resolution,"720p (default)\0 1440p (experimental)\0")) { scale=resolution+1; changes["resolution_scale"]=scale==1?std::nullopt:std::optional<std::string>("2"); changes["draw_resolution_scale_x"]=std::nullopt; changes["draw_resolution_scale_y"]=std::nullopt; }
+        int resolution=scale>=1&&scale<=3?scale-1:0;
+        if(ImGui::Combo("Internal resolution",&resolution,"720p (default)\0" "1440p\0" "4K (2160p, needs a fast GPU)\0")) { scale=resolution+1; changes["resolution_scale"]=scale==1?std::nullopt:std::optional<std::string>(std::to_string(scale)); changes["draw_resolution_scale_x"]=std::nullopt; changes["draw_resolution_scale_y"]=std::nullopt; }
+        if(ImGui::Combo("Aspect ratio",&aspect,"16:9 (default)\0" "16:10\0" "21:9 (ultrawide)\0" "32:9 (super ultrawide)\0" "4:3\0")) { const char* values[]={nullptr,"16:10","21:9","32:9","4:3"}; changes["aspect_ratio"]=values[aspect]?std::optional<std::string>(toml_string(values[aspect])):std::nullopt; changes["video_mode_width"]=std::nullopt; changes["video_mode_height"]=std::nullopt; }
+        if(ImGui::Combo("Anti-aliasing",&aa,"Off (default)\0FXAA\0FXAA (extreme)\0")) changes["swap_post_effect"]=aa==0?std::nullopt:std::optional<std::string>(toml_string(aa==1?"fxaa":"fxaa_extreme"));
+        if(ImGui::Combo("Texture filtering",&aniso,"Game's own\0Anisotropic 2x\0Anisotropic 4x (default)\0Anisotropic 8x\0Anisotropic 16x\0")) { const char* values[]={"-1","2",nullptr,"4","5"}; changes["anisotropic_override"]=values[aniso]?std::optional<std::string>(values[aniso]):std::nullopt; }
 #if LAUNCHER_FIDELITYFX
         if(ImGui::Combo("Upscale filter",&filter,"Bilinear\0CAS\0FSR\0")) changes["present_effect"]=filter==0?std::nullopt:std::optional<std::string>(toml_string(filter==1?"cas":"fsr"));
 #else
         ImGui::TextDisabled("Upscale filter: Bilinear (this build)");
 #endif
-        if(ImGui::Combo("Frame rate",&rate,"60 fps (default)\0 30 fps (stock)\0")) { changes["vsync"]=rate?std::optional<std::string>("true"):std::nullopt; changes["fps_cap"]=std::nullopt; }
+        if(ImGui::Combo("Frame rate",&rate,"60 fps (default)\0" "30 fps (stock)\0")) { changes["vsync"]=rate?std::optional<std::string>("true"):std::nullopt; changes["fps_cap"]=std::nullopt; }
+        ImGui::TextDisabled("In game: F3 shows the frame rate, F11 switches between fullscreen and a window.");
       }
       if(tab==3) {
         int language_index=language-1;
@@ -474,6 +484,11 @@ int main(int argc,char** argv) {
       if(tab==4) {
         ImGui::Text("Input backend: %s",input_backend.c_str());
         focus_first(!blocked);
+        if(ImGui::SliderFloat("Camera turn speed",&camera_speed,0.25f,4.0f,"%.2fx")) {
+          char text[16]; std::snprintf(text,sizeof(text),"%.2f",camera_speed);
+          changes["camera_sensitivity"]=std::abs(camera_speed-1.0f)<0.005f?std::nullopt:std::optional<std::string>(text);
+        }
+        ImGui::TextWrapped("How fast the right stick (or the mouse) turns the camera. 1.00x is the original speed.");
         if(ImGui::Checkbox("Mouse / keyboard mode",&mnk)) changes["mnk_mode"]=mnk?std::optional<std::string>("true"):std::nullopt;
         if(mnk) {
           if(ImGui::SliderFloat("Mouse sensitivity",&mouse_sens,0.1f,5.0f,"%.2f")) {

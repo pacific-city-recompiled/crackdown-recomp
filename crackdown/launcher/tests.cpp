@@ -111,6 +111,19 @@ int main(int argc,char** argv) {
     },xex); } catch(const std::exception& e) { cancellation=e.what(); }
     require(hashing && cancellation=="Cancelled","cancel during hashing"); cancel=false;
     rejects([&]{verify_folder(home/"folder",{{"default.xex",0,4,{}}},nullptr,Check::quick,{},xex);},"supported XEX wrong size");
+    { // A matching stamp skips the quick check's hashing; a changed file or a full check hashes again.
+      auto stamp=home/"verified-files.txt"; fs::remove(stamp);
+      require(verify_folder_cached(home/"folder",supported,stamp,nullptr,Check::quick,{},xex)==xex&&fs::exists(stamp),"stamp written");
+      unsigned reports=0; auto count=[&](uint64_t,uint64_t){++reports;};
+      require(verify_folder_cached(home/"folder",supported,stamp,nullptr,Check::quick,count,xex)==xex&&reports==0,"stamp skips hashing");
+      write(home/"folder/small.bin","wrong"); fs::last_write_time(home/"folder/small.bin",fs::last_write_time(home/"folder/small.bin")+std::chrono::seconds(5));
+      rejects([&]{verify_folder_cached(home/"folder",supported,stamp,nullptr,Check::quick,{},xex);},"changed file hashed again");
+      require(!fs::exists(stamp),"failed check leaves no stamp");
+      write(home/"folder/small.bin","small");
+      require(verify_folder_cached(home/"folder",supported,stamp,nullptr,Check::quick,{},xex)==xex,"stamp rewritten");
+      reports=0; require(verify_folder_cached(home/"folder",supported,stamp,nullptr,Check::full,count,xex)==xex&&reports>0,"full check ignores stamp");
+      fs::remove(stamp);
+    }
     auto staging=home/"game-install-1"; fs::create_directory(staging);
     require(unfinished_imports(home).empty(),"unmarked folder excluded");
     write(staging/".crackdown-import","garbage"); require(unfinished_imports(home).empty(),"invalid marker excluded");
@@ -243,6 +256,9 @@ int main(int argc,char** argv) {
     write(config,"game_data_root = 'C:/\xC3\xA9/test' # path\n"); update_config(config,{{"game_data_root",toml_string("C:/new")}}); require(setting(read_config(config),"game_data_root")->value<std::string>()=="C:/new","UTF8 value source range");
     write(config,"fullscreen = false\n[full]\nscreen = false\n"); // different flattened name; not ambiguous
     update_config(config,{{"fullscreen",std::nullopt}}); require(!setting(read_config(config),"fullscreen"),"default removal");
+    write(config,"a = 1\nfullscreen = false\nb = 2\n"); update_config(config,{{"fullscreen",std::nullopt}}); require(text(config)=="a = 1\nb = 2\n","removal drops the line");
+    write(config,"a = 1\r\nfullscreen = false\r\n"); update_config(config,{{"fullscreen",std::nullopt}}); require(text(config)=="a = 1\r\n","CRLF removal drops the line");
+    write(config,"fullscreen = false # keep\n"); update_config(config,{{"fullscreen",std::nullopt}}); require(text(config).find("# keep")!=std::string::npos,"removal keeps an inline comment");
     auto stale=config; stale+=".new"; write(config,"fullscreen = false\n"); write(stale,"stale"); update_config(config,{{"fullscreen","true"}});
     require(setting(read_config(config),"fullscreen")->value<bool>()==true && text(stale)=="stale","unowned temp file preserved while saving");
     write(config,"bad = ["); auto before=text(config); rejects([&]{update_config(config,{{"fullscreen","true"}});},"invalid TOML retained"); require(text(config)==before,"invalid TOML not overwritten");

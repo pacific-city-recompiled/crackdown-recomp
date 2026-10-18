@@ -6,6 +6,9 @@
 
 #include <rex/rex_app.h>
 #include <rex/filesystem.h>
+#include <rex/ui/keybinds.h>
+#include <rex/ui/overlay/debug_overlay.h>
+#include <rex/ui/window.h>
 
 #include "ap/bridge.h"
 #include "host_tuning.h"
@@ -43,11 +46,13 @@ class CrackdownApp : public rex::ReXApp {
     crackdown::ApplySimRate(runtime()->memory());
     crackdown::ApplyFpsCap(runtime()->memory());
     crackdown::DumpGuestImage(runtime());
+    SetGuestFrameStats(&crackdown::GuestFrameStats);
     // Capture effective cvars after GPU flags/defaults exist; edits are pending
     // until restart (including fullscreen). Use the launcher's adjacent file.
     crackdown::PCSettings().Initialize(rex::filesystem::GetExecutableFolder() / "crackdown.toml",
-        rex::cvar::Query<bool>("vsync"), rex::cvar::Query<int32_t>("resolution_scale"),
-        rex::cvar::Query<bool>("fullscreen"));
+        {rex::cvar::Query<bool>("vsync"), rex::cvar::Query<int32_t>("resolution_scale"),
+         rex::cvar::Query<std::string>("aspect_ratio"),
+         rex::cvar::Query<std::string>("swap_post_effect"), rex::cvar::Query<bool>("fullscreen")});
     crackdown::SetPCMenuQuitAction(
         [this] {
           return app_context().CallInUIThreadDeferred([this] {
@@ -73,12 +78,19 @@ class CrackdownApp : public rex::ReXApp {
     return true;
   }
 
+  // F11 switches between fullscreen (borderless) and windowed while playing.
+  // Not saved: crackdown.toml / the launcher still pick the startup mode.
+  void OnCreateDialogs(rex::ui::ImGuiDrawer*) override {
+    rex::ui::RegisterBind("bind_fullscreen", "F11", "Toggle fullscreen", [this] {
+      if (window()) window()->SetFullscreen(!window()->IsFullscreen());
+    });
+  }
+
   // Override virtual hooks for customization:
   // void OnPreSetup(rex::RuntimeConfig& config) override {}
   // void OnLoadXexImage(std::string& xex_image) override {}
   // void OnPostLoadXexImage() override {}
   // void OnPostSetup() override {}
-  // void OnCreateDialogs(rex::ui::ImGuiDrawer* drawer) override {}
   // std::unique_ptr<rex::ui::ImGuiDialog> CreateAchievementsOverlay() override;
   // std::unique_ptr<rex::ui::AchievementNotificationDialog>
   // CreateAchievementNotificationDialog() override;

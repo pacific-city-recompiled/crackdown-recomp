@@ -19,7 +19,7 @@ else:
     from tools.xui import edit, xpatch, xur, xus, xzp
 
 REPO = Path(__file__).resolve().parents[2]
-MANIFEST_SOURCE = 'wip/launcher:tools/game-manifest.txt'
+MANIFEST_SOURCE = 'HEAD:tools/game-manifest.txt'
 
 
 def manifest_records(text):
@@ -98,8 +98,59 @@ def modify_menu(data):
     return editor.finish()
 
 
+# PC Settings rows, in page order. Ids and button order must match
+# crackdown/src/pc_settings.cpp (Rows()).
+ROWS = [
+    ('framerate', 'Frame rate', ['60 fps', '30 fps (original)']),
+    ('resolution', 'Internal resolution', ['720p', '1440p', '4K']),
+    ('aspect', 'Aspect ratio', ['16:9', '21:9', '32:9']),
+    ('antialiasing', 'Anti-aliasing', ['Off', 'FXAA']),
+    ('display', 'Display', ['Fullscreen', 'Windowed']),
+]
+ROW_TOP = 287.0    # first radio group (was 351 with three rows)
+ROW_PITCH = 68.0   # was 60; 36 (row) + LABEL_ABOVE + 2 px gap
+# Caption text is drawn from the top of its box (PC checks 4-4c): 26/28-high boxes cut
+# descenders, and a label 36 above its row overlapped the row above at 64 pitch.
+LABEL_ABOVE = 30.0
+
+
+def add_radio_buttons(editor, group, count):
+    """Grow a cloned preset group (XuiRadioButton1/2) to count buttons.
+
+    The preset's two buttons fill the panel width, so three or more buttons are
+    narrowed to share that same span with the original gap between them
+    (PC check 4, 2026-10-18: a third button at the old step sat outside the
+    panel). NavLeft/NavRight wrap around the row.
+    """
+    buttons = group['children']
+    if count < len(buttons):
+        raise ValueError('radio rows need at least the two preset buttons')
+    value = lambda b, name: next((p['value'] for p in b['properties'] if p['name'] == name), None)
+    if count > len(buttons):
+        first, second = value(buttons[0], 'Position'), value(buttons[1], 'Position')
+        width = value(buttons[0], 'Width')
+        if first is None or second is None or width is None:
+            raise ValueError('preset radio buttons have no Position/Width to lay out')
+        gap = (second[0] - first[0]) - width
+        new_width = (second[0] - first[0] + width - (count - 1) * gap) / count
+        while len(group['children']) < count:
+            previous = group['children'][-1]
+            button = editor.clone(previous, group, f'XuiRadioButton{len(group["children"]) + 1}')
+            try:
+                editor.clone_timelines(group, previous, button)
+            except ValueError:
+                pass  # no group-owned animations for the buttons
+        for i, button in enumerate(group['children']):
+            editor.set_property(button, 'Width', new_width)
+            editor.set_property(button, 'Position', [first[0] + i * (new_width + gap)] + list(first[1:]))
+    buttons = group['children']
+    for i, button in enumerate(buttons):  # wraps, like the original pair
+        editor.set_property(button, 'NavRight', buttons[(i + 1) % len(buttons)]['id'])
+        editor.set_property(button, 'NavLeft', buttons[i - 1]['id'])
+
+
 def pc_scene(data):
-    """Screen 26: native DisplayOptions chrome, three radio rows, safe ctor dummies.
+    """Screen 26: native DisplayOptions chrome, five radio rows, safe ctor dummies.
 
     Static evidence: claude_screen.md (2026-10-12), ctor 0x8266B928.
     Native input/visual behavior is unverified at runtime until the PC receipt.
@@ -113,20 +164,25 @@ def pc_scene(data):
         editor.set_property(page, name, 'options')
     title = editor.find('options/pageTitle')
     for name, value in [('Text', 'PC Settings'), ('Width', 590.0),
-                        ('Height', 36.0), ('Visual', 'XuiLabel'), ('PointSize', 24.0)]:
+                        ('Height', 40.0), ('Visual', 'XuiLabel'), ('PointSize', 24.0)]:
         editor.set_property(title, name, value)
     # Make room above the original controls; keep the native collapse animation.
-    editor.set_property(title, 'Position', [346.0, 289.0, 0.0])
+    # 1.0 has five rows instead of three (ROW_PITCH apart), so the title and
+    # background start EXTRA higher and the background is taller by the added rows.
+    extra = 78.0
+    editor.set_property(title, 'Position', [346.0, 289.0 - extra, 0.0])
     background = editor.find('options/background2')
-    editor.set_property(background, 'Height', 282.0)
-    editor.set_property(background, 'Position', [336.0, 422.5, 0.0])
+    last = ROW_TOP + (len(ROWS) - 1) * ROW_PITCH
+    # Grow by how far the Back button moved down (was at 575) plus the raised top.
+    editor.set_property(background, 'Height', 282.0 + (last + 104.0 - 575.0) + extra)
+    editor.set_property(background, 'Position', [336.0, 422.5 - extra, 0.0])
     for timeline in page['timelines']:
         if timeline['target'] in ('pageTitle', 'background2'):
             for key in timeline['keyframes']:
                 for i, prop in enumerate(key['properties']):
                     if prop['name'] == 'Position':
                         position = list(prop['value'])
-                        position[1] -= 44.0
+                        position[1] -= 44.0 + extra
                         key['properties'][i] = editor.make_property('Position', 'v', position)
 
     def caption(ident, text, y, size=20.0):
@@ -134,7 +190,7 @@ def pc_scene(data):
         # This game's Element class predates Hittable/DisableFocusRecursion.
         # Use verified Control fields; unsupported bits desynchronize XUR load.
         for name, value in [('Text', text), ('Width', 590.0), ('Visual', 'XuiLabel'),
-                            ('Height', 26.0), ('PointSize', size), ('Position', [354.0, y, 0.0]),
+                            ('Height', float(round(size * 1.7))), ('PointSize', size), ('Position', [354.0, y, 0.0]),
                             ('Enabled', False), ('UnfocusedInput', False)]:
             editor.set_property(label, name, value)
         # Position and any native focus/nav keys must not restore old rows.
@@ -147,11 +203,8 @@ def pc_scene(data):
 
     preset = editor.find('options/preset')
     controls = []
-    for ident, label, texts, y in [
-        ('framerate', 'Frame rate', ['60 fps', '30 fps (original)'], 351.0),
-        ('resolution', 'Internal resolution', ['720p', '1440p'], 411.0),
-        ('display', 'Display', ['Fullscreen', 'Windowed'], 471.0),
-    ]:
+    for row, (ident, label, texts) in enumerate(ROWS):
+        y = ROW_TOP + row * ROW_PITCH
         group = editor.clone(preset, page, ident)
         editor.set_property(group, 'Position', [345.0, y, 0.0])
         editor.set_property(group, 'Height', 36.0)
@@ -160,16 +213,17 @@ def pc_scene(data):
             anim['definitions'] = [anim['definitions'][i] for i in keep]
             for key in anim['keyframes']:
                 key['properties'] = [key['properties'][i] for i in keep]
+        add_radio_buttons(editor, group, len(texts))
         for button, text in zip(group['children'], texts):
             editor.set_property(button, 'Text', text)
         controls.append(group)
-        caption(ident+'Label', label, y-25.0)
+        caption(ident+'Label', label, y-LABEL_ABOVE)
     nav_cycle(editor, controls)
     for group in controls:
         for button in group['children']:
             editor.set_property(button, 'NavUp', edit.property_value(group, 'NavUp'))
             editor.set_property(button, 'NavDown', edit.property_value(group, 'NavDown'))
-    caption('restartNotice', 'Changes apply the next time the game starts.', 525.0, 18.0)
+    caption('restartNotice', 'Changes apply the next time the game starts.', last + 54.0, 18.0)
 
     # The options ctor ALWAYS subscribes AudioSetup+52 and conditionally hides
     # AgentProfiles. Missing wrappers are dereferenced; disabled real wrappers
@@ -190,12 +244,12 @@ def pc_scene(data):
     back = editor.find('options/XuiBackButton1')
     for name, value in [('Text', 'Back'), ('Opacity', 1.0),
                         ('Visual', 'new-subMenuButton2'), ('Width', 160.0), ('Height', 36.0),
-                        ('Position', [354.0, 575.0, 0.0]), ('NavUp', 'display'),
-                        ('NavDown', 'framerate')]:
+                        ('Position', [354.0, last + 104.0, 0.0]), ('NavUp', ROWS[-1][0]),
+                        ('NavDown', ROWS[0][0])]:
         editor.set_property(back, name, value)
     retained = {'XuiBackButton1', 'footer', 'background2', 'pageTitle', 'AgentProfiles',
-                'AudioSetup', 'restartNotice', 'framerate', 'resolution', 'display',
-                'framerateLabel', 'resolutionLabel', 'displayLabel'}
+                'AudioSetup', 'restartNotice'}
+    retained |= {ident for ident, _, _ in ROWS} | {ident + 'Label' for ident, _, _ in ROWS}
     page['children'] = [c for c in page['children'] if c['id'] in retained]
     page['timelines'] = [t for t in page['timelines'] if t['target'] in retained]
     return editor.finish()
@@ -215,13 +269,13 @@ def pc_localization(data):
         if len(parts) > 2 and parts[1] in chrome and parts[-1] not in ('Text', 'Position', 'Width'):
             parts[0] = 'options'
             records.append(dict(path='.'.join(parts), value=record['value']))
-    labels = {'pageTitle': 'PC Settings', 'framerateLabel': 'Frame rate',
-              'resolutionLabel': 'Internal resolution', 'displayLabel': 'Display',
+    labels = {'pageTitle': 'PC Settings',
               'restartNotice': 'Changes apply the next time the game starts.',
-              'XuiBackButton1': 'Back',
-              'framerate.XuiRadioButton1': '60 fps', 'framerate.XuiRadioButton2': '30 fps (original)',
-              'resolution.XuiRadioButton1': '720p', 'resolution.XuiRadioButton2': '1440p',
-              'display.XuiRadioButton1': 'Fullscreen', 'display.XuiRadioButton2': 'Windowed'}
+              'XuiBackButton1': 'Back'}
+    for ident, label, texts in ROWS:
+        labels[ident + 'Label'] = label
+        for n, text in enumerate(texts, 1):
+            labels[f'{ident}.XuiRadioButton{n}'] = text
     for path, text in labels.items():
         edit.set_localized(records, 'options.'+path+'.Text', text)
     return xus.build(records)

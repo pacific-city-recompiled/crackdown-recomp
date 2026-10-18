@@ -18,6 +18,7 @@ set(CRACKDOWN_SOURCES
     src/host_tuning.cpp
     src/hooks_sleep.cpp
     src/hooks_intro.cpp
+    src/hooks_camera.cpp
     src/xui_patch.cpp
     src/hooks_pc_options.cpp
     src/pc_settings.cpp
@@ -25,6 +26,7 @@ set(CRACKDOWN_SOURCES
     src/hooks_capture.cpp
     src/hooks_xaudio.cpp
     src/hooks_framerate.cpp
+    src/hooks_aspect.cpp
     src/hooks_diag_physics.cpp
     src/hooks_diag_audio.cpp
     src/hooks_coop_trace.cpp

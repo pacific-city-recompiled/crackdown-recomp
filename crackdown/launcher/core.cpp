@@ -195,6 +195,46 @@ std::string verify_folder(const fs::path& folder, const std::vector<Entry>& mani
   if (progress) progress(done,total);
   return xex;
 }
+namespace {
+// One line per manifest file: "<size> <mtime ticks> <path>", after a header naming the
+// folder and the verified XEX hash.
+std::string folder_stamp(const fs::path& folder, const std::vector<Entry>& manifest, const std::string& xex) try {
+  std::ostringstream out;
+  out << "crackdown-verified 1\n" << utf8(fs::absolute(folder).lexically_normal()) << '\n' << xex << '\n';
+  for (const auto& e : manifest) {
+    std::error_code ec; auto p = checked_file(folder, e.path);
+    auto size = fs::file_size(p, ec); if (ec) return {};
+    auto time = fs::last_write_time(p, ec); if (ec) return {};
+    out << size << ' ' << time.time_since_epoch().count() << ' ' << e.path << '\n';
+  }
+  return out.str();
+} catch (const std::exception&) {
+  return {};  // unreadable: no stamp, so the next quick check hashes
+}
+}  // namespace
+
+std::string verify_folder_cached(const fs::path& folder, const std::vector<Entry>& manifest, const fs::path& stamp,
+                                 const std::atomic_bool* cancel, Check check, Progress progress,
+                                 const std::string& expected_xex) {
+  if (check == Check::quick) {
+    std::ifstream in(stamp, std::ios::binary);
+    std::stringstream saved; if (in) saved << in.rdbuf();
+    std::string text = saved.str(), header = "crackdown-verified 1\n";
+    if (text.starts_with(header)) {
+      auto line2 = text.find('\n', header.size()), line3 = line2 == text.npos ? line2 : text.find('\n', line2 + 1);
+      if (line3 != text.npos) {
+        std::string xex = text.substr(line2 + 1, line3 - line2 - 1);
+        if (xex == expected_xex && folder_stamp(folder, manifest, xex) == text) return xex;
+      }
+    }
+  }
+  std::error_code ec; fs::remove(stamp, ec);  // a failed or cancelled check leaves none
+  auto xex = verify_folder(folder, manifest, cancel, check, progress, expected_xex);
+  auto text = folder_stamp(folder, manifest, xex);
+  if (!text.empty()) { std::ofstream out(stamp, std::ios::binary); out << text; }  // best effort
+  return xex;
+}
+
 void Image::extract(const fs::path& destination, const std::atomic_bool& cancel, Progress progress) const {
   if (fs::exists(destination)) throw std::runtime_error("Extraction destination already exists");
   no_links(destination.parent_path());
