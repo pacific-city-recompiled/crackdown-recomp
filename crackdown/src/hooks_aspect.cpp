@@ -12,6 +12,7 @@
 // 720 lines times the ratio unless --video_mode_width/height were set.
 
 #include "generated/default/crackdown_init.h"
+#include "game_addresses.h"
 
 #include "host_tuning.h"
 
@@ -29,7 +30,7 @@ REXCVAR_DEFINE_STRING(aspect_ratio, "16:9", "Crackdown",
                       "such as 2.37. Hor+: wider ratios show more to the sides");
 
 namespace {
-constexpr uint32_t kAspectAddress = 0x82BAA498;  // float, written by sub_822846A0
+constexpr uint32_t kAspectAddress = CD_ADDR(0x82BAA498, 0x82C3ACB8);  // float, written by sub_822846A0
 }
 
 namespace crackdown {
@@ -57,8 +58,8 @@ bool AspectRatioIsDefault() {
 }
 }  // namespace crackdown
 
-REX_HOOK_RAW(sub_822846A0) {
-  __imp__sub_822846A0(ctx, base);
+CD_HOOK_RAW(CD_SUB(822846A0, 822AB4D0)) {
+  CD_IMP(822846A0, 822AB4D0)(ctx, base);
   if (!crackdown::AspectRatioIsDefault()) {
     REX_STORE_U32(kAspectAddress, std::bit_cast<uint32_t>(float(crackdown::AspectRatio())));
   }
