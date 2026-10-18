@@ -95,3 +95,14 @@ are identical (ratio 1.00), and both constants hold the same values:
 | Camera constructor | 0x822846A0 | 0x822AB4D0 |
 | Dev-console `widescreen` command | 0x8250AC58 | 0x82570218 |
 | Projection builders | 0x82285058, 0x823265E0, 0x82295D10, 0x82296748 | 0x822ABE88, 0x8235A958, 0x822BE448, 0x822BEE80 |
+
+Camera turn speed (1.0 PR #9, `hooks_camera.cpp`), mapped ahead of the re-sync:
+
+| What | Disc | Update |
+|---|---|---|
+| Camera tuning block pointer | 0x82DE258C | 0x82E799DC (25 of 25 aligned reference votes) |
+| Per-update tick hooked (returns +28/+36) | 0x82503F20 | 0x825677B0 (identical) |
+| Sibling (+32/+40) | 0x82503FD8 | 0x82567868 (identical) |
+| Player camera updates reading +60/+64 inline | 0x824FAC28, 0x824F9518 | 0x8255D5C0, 0x8255BE08 (same two lfs reads each) |
+
+The block layout is the same in the update (+28/+32/+36/+40 read by identical code; +60/+64 the same reads).
