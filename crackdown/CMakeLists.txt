@@ -18,6 +18,7 @@ set(CRACKDOWN_SOURCES
     src/host_tuning.cpp
     src/hooks_sleep.cpp
     src/hooks_intro.cpp
+    src/hooks_camera.cpp
     src/xui_patch.cpp
     src/hooks_pc_options.cpp
     src/pc_settings.cpp
