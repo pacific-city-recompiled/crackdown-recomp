@@ -445,7 +445,7 @@ int main(int argc,char** argv) {
 #else
         ImGui::TextDisabled("Upscale filter: Bilinear (this build)");
 #endif
-        if(ImGui::Combo("Frame rate",&rate,"60 fps (default)\0" "30 fps (stock)\0" "120 fps\0" "144 fps\0")) { changes["vsync"]=rate==1?std::optional<std::string>("true"):std::nullopt; changes["fps_cap"]=rate==2?std::optional<std::string>("120"):rate==3?std::optional<std::string>("144"):std::nullopt; }
+        if(ImGui::Combo("Frame rate",&rate,"60 fps (default)\0" "30 fps (stock)\0" "120 fps (experimental)\0" "144 fps (experimental)\0")) { changes["vsync"]=rate==1?std::optional<std::string>("true"):std::nullopt; changes["fps_cap"]=rate==2?std::optional<std::string>("120"):rate==3?std::optional<std::string>("144"):std::nullopt; }
         ImGui::TextDisabled("In game: F3 shows the frame rate, F11 switches between fullscreen and a window.");
       }
       if(tab==3) {
