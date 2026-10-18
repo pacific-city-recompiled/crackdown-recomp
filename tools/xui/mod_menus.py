@@ -108,8 +108,8 @@ ROWS = [
     ('display', 'Display', ['Fullscreen', 'Windowed']),
 ]
 ROW_TOP = 299.0    # first radio group (was 351 with three rows)
-ROW_PITCH = 64.0   # was 60; label box (28 high) sits 31 above its group
-LABEL_ABOVE = 31.0  # PC check 4: at 25 above with height 26, descenders were clipped
+ROW_PITCH = 64.0   # was 60; label box sits LABEL_ABOVE above its group
+LABEL_ABOVE = 36.0  # PC checks 4/4b: 20 pt captions in 26 or 28 high boxes lost descenders
 
 
 def add_radio_buttons(editor, group, count):
@@ -167,7 +167,7 @@ def pc_scene(data):
     # Make room above the original controls; keep the native collapse animation.
     # 1.0 has five rows instead of three (ROW_PITCH apart), so the title and
     # background start EXTRA higher and the background is taller by the added rows.
-    extra = 60.0
+    extra = 66.0
     editor.set_property(title, 'Position', [346.0, 289.0 - extra, 0.0])
     background = editor.find('options/background2')
     last = ROW_TOP + (len(ROWS) - 1) * ROW_PITCH
@@ -188,7 +188,7 @@ def pc_scene(data):
         # This game's Element class predates Hittable/DisableFocusRecursion.
         # Use verified Control fields; unsupported bits desynchronize XUR load.
         for name, value in [('Text', text), ('Width', 590.0), ('Visual', 'XuiLabel'),
-                            ('Height', 28.0), ('PointSize', size), ('Position', [354.0, y, 0.0]),
+                            ('Height', float(round(size * 1.7))), ('PointSize', size), ('Position', [354.0, y, 0.0]),
                             ('Enabled', False), ('UnfocusedInput', False)]:
             editor.set_property(label, name, value)
         # Position and any native focus/nav keys must not restore old rows.

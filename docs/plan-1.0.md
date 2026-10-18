@@ -129,6 +129,12 @@ Regenerate the patch (step 1; Scene.xpatch must change again), rebuild, then rep
 screenshot of the page, every row's buttons inside the panel, no clipped labels, Back on screen) and
 the 4:3 line of step 4 with a restart.
 
+Re-check 4b (8bc51fc, patch 82425b3): three-button rows fit, Back on screen, 4:3 shows no selection
+after a restart (`selections 0 0 -1 0 0; aspect_ratio 4:3`). Row labels still lost descenders: their
+own 28-high box was too short for 20 pt. Now 34 high (1.7 x point size), 36 above the row, page 6
+higher. Re-check 4c: regenerate the patch, rebuild, one screenshot of the page (labels whole, nothing
+overlapping).
+
 ## PC task 5: camera turn speed (stick sensitivity)
 
 Austin finds the right-stick camera very slow at every frame rate, with no way to change it. Our input
