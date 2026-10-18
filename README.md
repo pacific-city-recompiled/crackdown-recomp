@@ -1,4 +1,4 @@
-# Crackdown Recomp (beta)
+# Crackdown Recomp
 
 An unofficial native Windows PC port of **Crackdown** (Xbox 360, 2007), made by static
 recompilation. It runs at 60 fps by default and includes a launcher that installs the

@@ -16,7 +16,7 @@
 
 ## Install
 
-1. Download `CrackdownRecomp-beta<version>.zip` from the
+1. Download `CrackdownRecomp-<version>.zip` from the
    [latest release](https://github.com/Unowa001/crackdown-recomp/releases/latest).
 2. Extract the **whole** ZIP into a folder you can write to, e.g. `Documents\CrackdownRecomp`.
    Don't use `Program Files`, and don't run it from inside the ZIP.
@@ -26,7 +26,7 @@
    minute or two. An existing folder you select is used in place and never modified.
 5. Press **Play**.
 
-### Windows warnings (expected for this beta)
+### Windows warnings (expected)
 
 The files are not code-signed, so Windows may warn you:
 

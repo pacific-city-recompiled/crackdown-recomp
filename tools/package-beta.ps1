@@ -11,7 +11,7 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
 $sdk = Join-Path $repo 'sdk'
 $output = Join-Path $repo 'out/packages'
-$packageName = "CrackdownRecomp-beta$Version"
+$packageName = "CrackdownRecomp-$Version"
 $stage = Join-Path $output $packageName
 $zip = Join-Path $output "$packageName.zip"
 
@@ -148,7 +148,7 @@ $patchList = Get-ChildItem (Join-Path $repo 'patches/sdk') -Filter '*.patch' | S
 # VERSION.txt stays one line: third-party launchers (e.g. "GitHub Launcher") show its whole
 # text as the installed version (issue #3). Build details go at the end of README.txt, a file
 # the 0.4.0 updater already accepts (a new top-level file would fail its allowlist).
-"Beta $Version" | Set-Content (Join-Path $stage 'VERSION.txt') -Encoding UTF8
+"$Version" | Set-Content (Join-Path $stage 'VERSION.txt') -Encoding UTF8
 @('', 'Build details', "Repo: $repoVersion", "SDK: $sdkVersion", 'Applied SDK patches:', $patchList) | Add-Content (Join-Path $stage 'README.txt') -Encoding UTF8
 
 # Scan every executable and DLL, then fail on any non-system import not in the package.
@@ -196,5 +196,5 @@ try {
 # Companion digest is required by the launcher's update flow. Upload both assets together.
 $zipHash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
 "$zipHash  $packageName.zip" | Set-Content -LiteralPath "$zip.sha256" -Encoding ASCII
-Write-Output "Created local beta package: $zip"
+Write-Output "Created local package: $zip"
 Write-Output 'Public upload remains a separate owner decision; this script does not publish.'

@@ -1,4 +1,4 @@
-Crackdown Recomp beta (Windows x64)
+Crackdown Recomp (Windows x64)
 
 Requirements: x64 CPU with AVX2 and FMA3, a D3D12 GPU, Windows 10/11,
 and the Microsoft Visual C++ x64 Redistributable installed.
