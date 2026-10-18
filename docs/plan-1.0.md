@@ -95,7 +95,8 @@ FXAA) and Display (Fullscreen / Windowed). Hooks touched: ctor 0x8266B928 and no
    It writes to `out/xui/patches/XUIFrontEnd/` (`Scene.xzp.xpatch`, `menuHUD_3.xzp.xpatch`,
    `report.json`), not to `patches/xui/`. Copy them over the committed `patches/xui/Scene.xpatch` and
    `patches/xui/menuHUD_3.xpatch`, refresh `patches/xui/Scene.audit.json` from the Scene entry of
-   `report.json`, and check `git diff --stat`: both patches must change (the page now has five rows).
+   `report.json`, and check `git diff --stat`: `Scene.xpatch` must change (the page now has five rows); `menuHUD_3.xpatch`
+   should stay the same.
    Every report entry must show `original_matching_literal_windows: 0`. Commit and push to this branch.
 2. Build Release `crackdown.exe`; run `pc_settings_tests` and the XUI tests
    (`python -m unittest tools.xui.test_edit_patch tools.xui.test_xui`).
