@@ -19,7 +19,7 @@ else:
     from tools.xui import edit, xpatch, xur, xus, xzp
 
 REPO = Path(__file__).resolve().parents[2]
-MANIFEST_SOURCE = 'wip/launcher:tools/game-manifest.txt'
+MANIFEST_SOURCE = 'HEAD:tools/game-manifest.txt'
 
 
 def manifest_records(text):

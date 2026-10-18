@@ -91,9 +91,12 @@ Internal resolution (720p / 1440p / 4K), Aspect ratio (16:9 / 21:9 / 32:9), Anti
 FXAA) and Display (Fullscreen / Windowed). Hooks touched: ctor 0x8266B928 and notify 0x8269C3C0
 (both already in docs/re-notes.md); no new guest addresses.
 
-1. Regenerate the menu patch from the game files: `python tools/xui/mod_menus.py <game folder>`
-   (writes `patches/xui/Scene.xpatch` and `Scene.audit.json`). The audit must still show
-   `original_matching_literal_windows: 0`. Commit and push both files to this branch.
+1. Regenerate the menu patches from the game files: `python tools/xui/mod_menus.py <game folder>`.
+   It writes to `out/xui/patches/XUIFrontEnd/` (`Scene.xzp.xpatch`, `menuHUD_3.xzp.xpatch`,
+   `report.json`), not to `patches/xui/`. Copy them over the committed `patches/xui/Scene.xpatch` and
+   `patches/xui/menuHUD_3.xpatch`, refresh `patches/xui/Scene.audit.json` from the Scene entry of
+   `report.json`, and check `git diff --stat`: both patches must change (the page now has five rows).
+   Every report entry must show `original_matching_literal_windows: 0`. Commit and push to this branch.
 2. Build Release `crackdown.exe`; run `pc_settings_tests` and the XUI tests
    (`python -m unittest tools.xui.test_edit_patch tools.xui.test_xui`).
 3. Game, scratch profile: open Options > PC Settings. Screenshot the page. Check that all five rows
