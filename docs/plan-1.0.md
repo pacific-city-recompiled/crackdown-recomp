@@ -94,7 +94,7 @@ FXAA) and Display (Fullscreen / Windowed). Hooks touched: ctor 0x8266B928 and no
 1. Regenerate the menu patch from the game files: `python tools/xui/mod_menus.py <game folder>`
    (writes `patches/xui/Scene.xpatch` and `Scene.audit.json`). The audit must still show
    `original_matching_literal_windows: 0`. Commit and push both files to this branch.
-2. Build Release `crackdown.exe`; run `crackdown_pc_settings_tests` and the XUI tests
+2. Build Release `crackdown.exe`; run `pc_settings_tests` and the XUI tests
    (`python -m unittest tools.xui.test_edit_patch tools.xui.test_xui`).
 3. Game, scratch profile: open Options > PC Settings. Screenshot the page. Check that all five rows
    and the Back button fit on screen, labels aren't cut off or overlapping, the 3-button rows are
