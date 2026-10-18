@@ -26,6 +26,7 @@ add_executable(crackdown_tu WIN32
     ${CD_SRC}/hooks_capture.cpp
     ${CD_SRC}/hooks_coop_trace.cpp
     ${CD_SRC}/hooks_aspect.cpp
+    ${CD_SRC}/hooks_camera.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../crackdown/common/toml_edit.cpp
     ${SDK_THIRDPARTY}/crypto/sha256.cpp
 )
