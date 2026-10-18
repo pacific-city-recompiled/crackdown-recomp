@@ -23,6 +23,7 @@
 // game_addresses.h on its own branch; map these there when this lands on it.
 
 #include "generated/default/crackdown_init.h"
+#include "game_addresses.h"
 
 #include <algorithm>
 #include <array>
@@ -40,7 +41,7 @@ REXCVAR_DEFINE_DOUBLE(camera_sensitivity, 1.0, "Crackdown",
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
 namespace {
-constexpr uint32_t kCameraTuningPointer = 0x82DE258C;
+constexpr uint32_t kCameraTuningPointer = CD_ADDR(0x82DE258C, 0x82E799DC);
 constexpr std::array<uint32_t, 6> kRateOffsets = {28, 32, 36, 40, 60, 64};
 
 struct State {
@@ -77,7 +78,7 @@ void ApplySensitivity(uint8_t* base) {
 }
 }  // namespace
 
-REX_HOOK_RAW(sub_82503F20) {
+CD_HOOK_RAW(CD_SUB(82503F20, 825677B0)) {
   ApplySensitivity(base);
-  __imp__sub_82503F20(ctx, base);
+  CD_IMP(82503F20, 825677B0)(ctx, base);
 }
