@@ -111,6 +111,7 @@ int main(int argc,char** argv) {
   bool skip_intro=true,mnk=false,auto_updates=false,beta_channel=false,ask_updates=false;
   int monitor=0,language=1,tab=0; bool focus_page=true; std::string device="keyboard",input_backend="sdl";
   fs::file_time_type log_since{};
+  CoopSettings coop; char coop_own[64]{},coop_partner[64]{}; std::string coop_error; std::vector<std::string> coop_addresses;
   fs::path user; bool portable=false; std::vector<std::string> profiles; std::string profile; char new_profile[48]{};
   try {
     auto probe=home/(".launcher-write-"+std::to_string(SDL_GetTicks()));
@@ -136,9 +137,12 @@ int main(int argc,char** argv) {
     language=static_cast<int>(value<int64_t>(t,"user_language",1)); if(language<1||language>10) language=1;
     skip_intro=value<bool>(t,"skip_intro_videos",true); mnk=value<bool>(t,"mnk_mode",false);
     mouse_sens=std::clamp(static_cast<float>(value<double>(t,"mnk_sensitivity",1.0)),0.1f,5.0f);
+    coop=load_coop(t);
+    std::snprintf(coop_own,sizeof(coop_own),"%s",coop.own_address.c_str()); std::snprintf(coop_partner,sizeof(coop_partner),"%s",coop.partner_address.c_str());
     camera_speed=std::clamp(static_cast<float>(value<double>(t,"camera_sensitivity",1.0)),0.25f,4.0f);
     input_backend=value<std::string>(t,"input_backend","sdl"); monitor=std::clamp(static_cast<int>(value<int64_t>(t,"monitor",0)),0,16);
   } catch(const std::exception& e) { error=e.what(); }
+  coop_addresses=local_ipv4_addresses();
   try { manifest=load_manifest(home/"game-manifest.txt"); } catch(const std::exception& e) { error=e.what(); }
   try {
     auto prefs=read_config(preferences);
@@ -459,6 +463,23 @@ int main(int argc,char** argv) {
         if(ImGui::Checkbox("Close launcher after Play",&close_on_play)) {
           try { update_config(preferences,{{"close_on_play",close_on_play?std::optional<std::string>("true"):std::nullopt}}); } catch(const std::exception& e) { error=e.what(); }
         }
+        ImGui::SeparatorText("Co-op (System Link, experimental)");
+        bool coop_edit=ImGui::Checkbox("Play co-op with another PC",&coop.enabled);
+        if(coop_edit&&coop.enabled&&!coop_own[0]&&!coop_addresses.empty()) std::snprintf(coop_own,sizeof(coop_own),"%s",coop_addresses.front().c_str());
+        if(coop.enabled) {
+          int role=coop.join?1:0;
+          if(ImGui::Combo("Role",&role,"Player 1 (hosts)\0Player 2 (joins)\0")) { coop.join=role==1; coop_edit=true; }
+          ImGui::SetNextItemWidth(280*ui_scale); coop_edit|=ImGui::InputTextWithHint("Your address",coop_addresses.empty()?"e.g. 192.168.1.20":coop_addresses.front().c_str(),coop_own,sizeof(coop_own));
+          for(const auto& address:coop_addresses) { ImGui::SameLine(); if(ImGui::SmallButton(address.c_str())) { std::snprintf(coop_own,sizeof(coop_own),"%s",address.c_str()); coop_edit=true; } }
+          ImGui::SetNextItemWidth(280*ui_scale); coop_edit|=ImGui::InputTextWithHint("Other player's address","e.g. 192.168.1.21",coop_partner,sizeof(coop_partner));
+          ImGui::TextWrapped("Both players need the same game version. Co-op runs at 30 fps. Over the internet, use Tailscale addresses (100.x.y.z). In the game: Campaign > Play Now - Co-op. %s",
+                             coop.join?"Player 2 has a separate save, which starts fresh (see SETUP.md to copy yours).":"Player 1 keeps their normal save.");
+        }
+        if(coop_edit) {
+          coop.own_address=coop_own; coop.partner_address=coop_partner;
+          try { for(auto& [key,v]:coop_changes(coop)) changes[key]=v; coop_error.clear(); } catch(const std::exception& e) { coop_error=e.what(); }
+        }
+        if(coop.enabled&&!coop_error.empty()) ImGui::TextColored({1.f,.45f,.4f,1.f},"%s",coop_error.c_str());
       }
       if(tab==4) {
         ImGui::Text("Input backend: %s",input_backend.c_str());

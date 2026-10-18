@@ -174,6 +174,22 @@ int main(int argc,char** argv) {
     require(ap.enabled && ap.slot=="Player 1" && ap.password=="p\"w=1","AP connection round trip");
     require(ap_args(ap)==std::vector<std::string>{"--ap_server=host.example:38281","--ap_slot=Player 1"},"AP args trimmed, password not in argv");
     rejects([&]{ap_args({true,"","Player 1",""});},"AP needs a server");
+    {
+      auto off=coop_changes({});
+      require(off.size()==std::size(kCoopConfigKeys),"co-op off removes every co-op key");
+      for(const auto& [key,v]:off) require(!v,"co-op off writes nothing");
+      auto host=coop_changes({true,false," 192.168.1.20 ","192.168.1.21"});
+      require(host["net_mode"]==toml_string("direct")&&host["net_bind_ip"]==toml_string("192.168.1.20"),"co-op host mode and bind address");
+      require(host["net_peer_endpoints"]==toml_string("192.168.1.21:1001")&&!host["coop_profile_xuid"],"co-op host peer, default identity");
+      auto join=coop_changes({true,true,"100.64.0.2","100.64.0.1"});
+      require(join["coop_profile_xuid"]==toml_string("12754194144713244674")&&join["coop_profile_name"]==toml_string("Player2"),"co-op player 2 identity");
+      rejects([&]{coop_changes({true,false,"","192.168.1.21"});},"co-op needs own address");
+      rejects([&]{coop_changes({true,false,"192.168.1.20","host.example"});},"co-op partner must be IPv4");
+      rejects([&]{coop_changes({true,false,"192.168.1.20","192.168.1.20"});},"co-op addresses differ");
+      auto parsed=load_coop(toml::parse("net_mode = \"direct\"\nnet_bind_ip = \"100.64.0.2\"\nnet_peer_endpoints = \"100.64.0.1:1001\"\ncoop_profile_xuid = \"12754194144713244674\"\n"));
+      require(parsed.enabled&&parsed.join&&parsed.own_address=="100.64.0.2"&&parsed.partner_address=="100.64.0.1","co-op settings read back");
+      require(!load_coop(toml::table{}).enabled,"co-op off by default");
+    }
     rejects([&]{ap_args({true,"host:1"," ",""});},"AP needs a slot");
     auto link=parse_ap_uri("archipelago://Player%201:p%40ss:w@archipelago.gg:38281");
     require(link && link->enabled && link->server=="archipelago.gg:38281" && link->slot=="Player 1" && link->password=="p@ss:w","AP room link parsed");

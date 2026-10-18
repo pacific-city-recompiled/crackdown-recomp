@@ -6,6 +6,8 @@
 #include <ws2tcpip.h>
 #else
 #include <arpa/inet.h>
+#include <netdb.h>
+#include <unistd.h>
 #endif
 #include <algorithm>
 #include <array>
@@ -382,6 +384,63 @@ static std::optional<std::string> percent_decoded(const std::string& s) {
   }
   // No control characters (NUL would truncate the value in the UI and in connection.toml).
   for (unsigned char ch : out) if (ch<0x20 || ch==0x7f) return std::nullopt;
+  return out;
+}
+namespace {
+constexpr char kCoopJoinXuid[] = "12754194144713244674";  // 0xB100000000000002
+constexpr uint16_t kCoopDiscoveryPort = 1001;
+bool valid_ipv4(const std::string& text) {
+  unsigned char address[4];
+  return !text.empty() && inet_pton(AF_INET,text.c_str(),address)==1;
+}
+}  // namespace
+CoopSettings load_coop(const toml::table& config) {
+  CoopSettings c;
+  auto text=[&](const char* key) { auto n=setting(config,key); return n?n->value<std::string>().value_or(""):std::string(); };
+  c.enabled=text("net_mode")=="direct";
+  c.own_address=text("net_bind_ip");
+  auto peers=text("net_peer_endpoints");
+  c.partner_address=peers.substr(0,peers.find_first_of(":,"));
+  auto xuid=setting(config,"coop_profile_xuid");
+  c.join=xuid && xuid->value<std::string>().value_or("")==kCoopJoinXuid;
+  return c;
+}
+std::map<std::string, std::optional<std::string>> coop_changes(const CoopSettings& coop) {
+  std::map<std::string, std::optional<std::string>> changes;
+  for (const char* key : kCoopConfigKeys) changes[key]=std::nullopt;
+  if (!coop.enabled) return changes;
+  auto own=trimmed(coop.own_address), partner=trimmed(coop.partner_address);
+  if (!valid_ipv4(own)) throw std::runtime_error("Co-op: enter this PC's IPv4 address, e.g. 192.168.1.20 or 100.x.y.z");
+  if (!valid_ipv4(partner)) throw std::runtime_error("Co-op: enter the other player's IPv4 address, e.g. 192.168.1.21 or 100.x.y.z");
+  if (own==partner) throw std::runtime_error("Co-op: your address and the other player's address must differ");
+  changes["net_mode"]=toml_string("direct");
+  changes["net_bind_ip"]=toml_string(own);
+  changes["net_peer_endpoints"]=toml_string(partner+":"+std::to_string(kCoopDiscoveryPort));
+  changes["coop_profile_name"]=toml_string(coop.join?"Player2":"Player1");
+  if (coop.join) changes["coop_profile_xuid"]=toml_string(kCoopJoinXuid);
+  return changes;
+}
+std::vector<std::string> local_ipv4_addresses() {
+  std::vector<std::string> out;
+#ifdef _WIN32
+  WSADATA wsa; if (WSAStartup(MAKEWORD(2,2),&wsa)!=0) return out;
+#endif
+  char host[256]{};
+  addrinfo hints{}, *list=nullptr; hints.ai_family=AF_INET;
+  if (gethostname(host,sizeof(host)-1)==0 && getaddrinfo(host,nullptr,&hints,&list)==0) {
+    for (auto* a=list; a; a=a->ai_next) {
+      char text[INET_ADDRSTRLEN]{};
+      auto* in=reinterpret_cast<sockaddr_in*>(a->ai_addr);
+      if (!inet_ntop(AF_INET,&in->sin_addr,text,sizeof(text))) continue;
+      std::string s=text;
+      if (s.rfind("127.",0)==0 || s.rfind("169.254.",0)==0) continue;
+      if (std::find(out.begin(),out.end(),s)==out.end()) out.push_back(s);
+    }
+    freeaddrinfo(list);
+  }
+#ifdef _WIN32
+  WSACleanup();
+#endif
   return out;
 }
 std::optional<ApConnection> parse_ap_uri(const std::string& uri) {

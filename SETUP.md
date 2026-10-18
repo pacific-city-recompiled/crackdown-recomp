@@ -163,11 +163,21 @@ it goes between two PCs.
 
 ### 2. Tell each game where the other player is
 
-Open `crackdown.toml` in your install folder (next to `CrackdownLauncher.exe`) with
-Notepad, or create it, and add these lines with **your own** address first and your
-partner's address second.
+In the launcher, open **SETTINGS → GAMEPLAY**, tick **Play co-op with another PC** and fill in:
 
-Player 1 (hosts the game):
+- **Role:** one player picks **Player 1 (hosts)**, the other **Player 2 (joins)**.
+- **Your address:** this PC's address (the buttons next to it list the ones the launcher found).
+- **Other player's address:** your partner's address.
+
+Then **Save settings**. Untick the box again to play solo with your normal settings.
+Without these settings **Play Now - Co-op** stays greyed out in the game.
+
+Player 2 plays co-op with a separate save, which starts fresh. To keep an existing save,
+copy the `B13EBABEBABEBABE` folder in `Documents\crackdown` to a new folder named
+`B100000000000002` before playing.
+
+The launcher writes these lines to `crackdown.toml` next to `CrackdownLauncher.exe`; you can
+also add them by hand. Player 1:
 
 ```toml
 net_mode = "direct"
@@ -176,7 +186,7 @@ net_peer_endpoints = "100.101.102.2:1001" # your partner's address, then :1001
 coop_profile_name = "Player1"
 ```
 
-Player 2 (joins):
+Player 2:
 
 ```toml
 net_mode = "direct"
@@ -185,11 +195,6 @@ net_peer_endpoints = "100.101.102.1:1001"
 coop_profile_xuid = "12754194144713244674"  # must differ from player 1
 coop_profile_name = "Player2"
 ```
-
-Player 2's different `coop_profile_xuid` gives them a separate save, which starts
-fresh. To keep an existing save, copy the `B13EBABEBABEBABE` folder in
-`Documents\crackdown` to a new folder named `B100000000000002` before playing.
-Remove these lines again to play solo with your normal settings.
 
 ### 3. Play
 
