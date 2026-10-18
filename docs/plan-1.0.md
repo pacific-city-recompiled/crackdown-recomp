@@ -10,7 +10,7 @@ and the title update are 1.1. Build 1.0 release candidates from GitHub main, not
 | 2 | Ultrawide / other aspect ratios (`--aspect_ratio`, launcher "Aspect ratio") | Austin: ultrawide looked good (PC check 2) |
 | 3 | FPS counter (F3) and fullscreen/window toggle (F11) | passed PC check (0290803) |
 | 4 | Achievements overlay (F7) | works with icons; text is small at 1440p |
-| 5 | Frame rates above 60 (launcher 120 / 144; host frame pacing above 60) | code in this branch, needs PC check 3; ships only if every rate passes |
+| 5 | Frame rates above 60 (launcher 120 / 144; host frame pacing above 60) | PC check 3 passed except car acceleration (5-7% under 60); launcher marks them experimental |
 
 ## Rules for PC checks
 
@@ -68,3 +68,18 @@ VO timeout investigation").
    packed anim), and the cosmetic timer sub_823FF3B8. Note anything worse at 120 / 144.
 7. Launcher: Frame rate offers 60 / 30 / 120 / 144; saving 120 writes `fps_cap = 120` and no
    `vsync`; 60 removes both.
+
+### Result (2026-10-18, 01745c5, 23 runs)
+
+| Check | 30 | 60 | 120 | 144 |
+|---|---|---|---|---|
+| Pacing, spawn stand (avg fps / 1% low ms) | 30.0 / 36.4 | 61.6 / 18.0 | 119.9 / 9.4 | 124.4 / 9.8 (game ceiling there; garage holds 144.0) |
+| Stairs peak speed (m/s) | 11.86 | 11.85 | 11.83 | 12.02 |
+| Car speed at 0.5 / 1.0 / 1.5 s (m/s) | 7.8 / 14.0 / 18.4 | 7.3 / 13.1 / 18.1 | 6.5 / 12.3 / 17.2 | 6.8 / 12.5 / 17.3 |
+| Wall hit velocity change (m/s) | 18.6 | 20.8 | 17.6 | 18.4 |
+| Havok step dt (s) | 0.033 | 0.016 | 0.008-0.009 | 0.007-0.008 |
+| Drive replay audio | complete | complete | complete | complete |
+
+Crash damage is about 12-15% per hard hit at every rate, with no instant wreck. No voice was stopped by the timeout at any
+rate, and the error set is the same as at 60. Open: car acceleration is 5-7% under 60 (repeatable; top speed about 19 vs
+20 m/s); crowd animation speed and prop jitter need a live play at 120 (the drive replay stays in the garage).
