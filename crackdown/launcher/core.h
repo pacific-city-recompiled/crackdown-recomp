@@ -26,6 +26,14 @@ inline constexpr uint64_t quick_hash_limit = 1024 * 1024;
 std::string verify_folder(const fs::path& folder, const std::vector<Entry>& manifest,
                           const std::atomic_bool* cancel = nullptr, Check check = Check::quick,
                           Progress progress = {}, const std::string& expected_xex = supported_xex);
+// verify_folder, but a quick check is skipped when `stamp` (written after the last
+// successful check of the same folder) still matches every file's size and modification
+// time. Any change, or a full check, hashes again and rewrites the stamp. Guards against
+// damaged or replaced files, not deliberate tampering.
+std::string verify_folder_cached(const fs::path& folder, const std::vector<Entry>& manifest,
+                                 const fs::path& stamp, const std::atomic_bool* cancel = nullptr,
+                                 Check check = Check::quick, Progress progress = {},
+                                 const std::string& expected_xex = supported_xex);
 class Image {
  public:
   explicit Image(const fs::path& path);
