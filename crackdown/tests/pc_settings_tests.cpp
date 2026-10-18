@@ -48,7 +48,7 @@ int main() {
                                  "resolution_scale = 1\r\n" + other;
     Write(path, original);
     crackdown::PCSettingsStore store;
-    store.Initialize(path, false, 1, true);
+    store.Initialize(path, {false, 1, "16:9", "none", true});
     Require(!store.Save(PCSetting::framerate, 0) && Read(path) == original, "unchanged notify writes nothing");
     Require(store.Save(PCSetting::framerate, 1), "30 fps save");
     Require(Read(path) == std::string("# retain\r\nvsync = true # frame comment\r\nfullscreen = true\r\nresolution_scale = 1\r\n")+other,
@@ -69,24 +69,42 @@ int main() {
     Reject([&] { store.Save(PCSetting::display, 1); });
     Require(store.Selection(PCSetting::display) == 0 && Read(path) == "bad = [", "failed save retains state and source");
     Reject([&] { store.Save(PCSetting::display, 2); });
+    Reject([&] { store.Save(PCSetting::resolution, 3); });
     Reject([&] { store.Save(static_cast<PCSetting>(99), 1); });
     fs::remove(path);
     Require(store.Save(PCSetting::display, 1) && Read(path) == "fullscreen = false\n", "create adjacent config if absent");
-    store.Initialize(path, true, 3, false);
-    Require(store.Selection(PCSetting::resolution) == -1, "unsupported scale not silently presented as preset");
+    store.Initialize(path, {true, 4, "4:3", "fxaa_extreme", false});
+    Require(store.Selection(PCSetting::resolution) == -1 && store.Selection(PCSetting::aspect) == -1 &&
+            store.Selection(PCSetting::antialiasing) == -1, "unsupported values not silently presented as presets");
     Require(store.Save(PCSetting::resolution, 0), "deliberate preset from unsupported scale");
+    { // 1.0 rows: 4K, aspect ratio and FXAA.
+      Write(path, "");
+      store.Initialize(path, {false, 1, "16:9", "none", true});
+      Require(store.Save(PCSetting::resolution, 2) && store.Save(PCSetting::aspect, 1) &&
+              store.Save(PCSetting::antialiasing, 1), "1.0 row saves");
+      auto t = read_config(path);
+      Require(setting(t, "resolution_scale")->value<int64_t>() == 3 &&
+              setting(t, "aspect_ratio")->value<std::string>() == "21:9" &&
+              setting(t, "swap_post_effect")->value<std::string>() == "fxaa", "1.0 row values");
+      Require(store.Save(PCSetting::aspect, 2) && setting(read_config(path), "aspect_ratio")->value<std::string>() == "32:9", "32:9");
+      for (auto key : {PCSetting::resolution, PCSetting::aspect, PCSetting::antialiasing}) Require(store.Save(key, 0), "1.0 defaults");
+      Require(Read(path).empty(), "1.0 defaults remove their lines");
+      store.Initialize(path, {false, 3, "21:9", "fxaa", true});
+      Require(store.Selection(PCSetting::resolution) == 2 && store.Selection(PCSetting::aspect) == 1 &&
+              store.Selection(PCSetting::antialiasing) == 1, "1.0 startup values selected");
+    }
     Write(path, "[gpu]\nresolution_scale = 2 # retain\n[other]\nvalue = 9\n");
-    store.Initialize(path, false, 2, true);
+    store.Initialize(path, {false, 2, "16:9", "none", true});
     Require(store.Save(PCSetting::resolution, 0) && !setting(read_config(path), "resolution_scale"), "default leaves unrelated gpu table setting");
     // SDK/launcher flatten table names with underscores; unrelated gpu_* is retained.
     Require(Read(path).find("resolution_scale = 2 # retain") != std::string::npos, "unrelated table key preserved");
     Write(path, "[resolution]\nscale = 2 # retain\n[other]\nvalue = 9\n");
-    store.Initialize(path, false, 2, true);
+    store.Initialize(path, {false, 2, "16:9", "none", true});
     Require(store.Save(PCSetting::resolution, 0) && !setting(read_config(path), "resolution_scale"), "flattened table default removed");
     Require(Read(path).find("# retain") != std::string::npos && Read(path).ends_with("[other]\nvalue = 9\n"), "table removal preserves surrounding source");
     Write(path, "resolution_scale = 2\n[resolution]\nscale = 2\n");
     const auto ambiguous = Read(path);
-    store.Initialize(path, false, 2, true);
+    store.Initialize(path, {false, 2, "16:9", "none", true});
     Reject([&] { store.Save(PCSetting::resolution, 0); });
     Require(Read(path) == ambiguous && store.Selection(PCSetting::resolution) == 1, "ambiguous config retains source/state");
     std::cout << "PC settings persistence tests passed\n";

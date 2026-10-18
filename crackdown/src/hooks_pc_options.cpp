@@ -105,20 +105,17 @@ void NotifySettings(const PPCContext& ctx, uint8_t* base) {
   REXLOG_DEBUG("pc settings: notify code={} id={} hObj=0x{:08X} initializing={}",
                code, LogId(base, id), ctx.r3.u32, setting_selection);
   if (code != 4 || setting_selection) return;
-  const std::u16string_view ids[] = {u"framerate", u"resolution", u"display"};
-  for (size_t i = 0; i < 3; ++i) {
-    if (!GuestIdEquals(base, id, ids[i])) continue;
+  for (size_t i = 0; i < crackdown::kPCSettingCount; ++i) {
+    const auto setting = static_cast<crackdown::PCSetting>(i);
+    if (!GuestIdEquals(base, id, crackdown::PCSettingId(setting))) continue;
     auto call = SideCall(ctx, base);
     sub_8269C378(call, base);
     const auto selection = call.r3.s32;
-    if (selection < 0 || selection > 1) return;
-    const auto setting = static_cast<crackdown::PCSetting>(i);
+    if (selection < 0 || selection >= crackdown::PCSettingChoices(setting)) return;
     try {
       if (crackdown::PCSettings().Save(setting, selection)) {
-        const char* keys[] = {"vsync", "resolution_scale", "fullscreen"};
-        const char* values[] = {"true", "2", "false"};
-        REXLOG_INFO("pc settings: saved {}={} (restart required)",
-                    keys[i], selection == 0 ? "default (key removed)" : values[i]);
+        REXLOG_INFO("pc settings: saved {} (restart required)",
+                    crackdown::PCSettingsStore::Describe(setting, selection));
       }
     } catch (const std::exception& error) {
       REXLOG_WARN("pc settings: save failed; restoring selection ({})", error.what());
@@ -211,19 +208,19 @@ REX_HOOK_RAW(sub_8266B928) {
   const auto scene = REX_LOAD_U32(object + 132);
   if (!scene) return;
   const auto handle = REX_LOAD_U32(scene + 4);
-  const std::u16string_view ids[] = {u"framerate", u"resolution", u"display"};
-  for (size_t i = 0; i < 3; ++i) {
-    const auto child = FindChild(ctx, base, handle, ids[i]);
+  std::string selections;
+  for (size_t i = 0; i < crackdown::kPCSettingCount; ++i) {
+    const auto setting = static_cast<crackdown::PCSetting>(i);
+    const auto child = FindChild(ctx, base, handle, crackdown::PCSettingId(setting));
     if (!child) {
       REXLOG_WARN("pc settings: missing radio group {}", i);
       continue;
     }
-    SetSelection(ctx, base, child, crackdown::PCSettings().Selection(static_cast<crackdown::PCSetting>(i)));
+    const int selection = crackdown::PCSettings().Selection(setting);
+    SetSelection(ctx, base, child, selection);
+    selections += (i ? " " : "") + std::to_string(selection);
   }
-  REXLOG_INFO("pc settings: initialized screen 26 (framerate={}, resolution={}, display={}; restart required)",
-              crackdown::PCSettings().Selection(crackdown::PCSetting::framerate),
-              crackdown::PCSettings().Selection(crackdown::PCSetting::resolution),
-              crackdown::PCSettings().Selection(crackdown::PCSetting::display));
+  REXLOG_INFO("pc settings: initialized screen 26 (selections {}; restart required)", selections);
 }
 
 // Guest 0x826587F8 (generated .45.cpp): "bl 0x8268d318", "lwz r11,4(r3)",

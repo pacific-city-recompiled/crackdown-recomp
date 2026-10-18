@@ -83,3 +83,25 @@ VO timeout investigation").
 Crash damage is about 12-15% per hard hit at every rate, with no instant wreck. No voice was stopped by the timeout at any
 rate, and the error set is the same as at 60. Open: car acceleration is 5-7% under 60 (repeatable; top speed about 19 vs
 20 m/s); crowd animation speed and prop jitter need a live play at 120 (the drive replay stays in the garage).
+
+## PC check 4: in-game PC Settings menu
+
+The in-game PC Settings page (Options, screen 26) now matches the launcher: Frame rate (60 / 30),
+Internal resolution (720p / 1440p / 4K), Aspect ratio (16:9 / 21:9 / 32:9), Anti-aliasing (Off /
+FXAA) and Display (Fullscreen / Windowed). Hooks touched: ctor 0x8266B928 and notify 0x8269C3C0
+(both already in docs/re-notes.md); no new guest addresses.
+
+1. Regenerate the menu patch from the game files: `python tools/xui/mod_menus.py <game folder>`
+   (writes `patches/xui/Scene.xpatch` and `Scene.audit.json`). The audit must still show
+   `original_matching_literal_windows: 0`. Commit and push both files to this branch.
+2. Build Release `crackdown.exe`; run `crackdown_pc_settings_tests` and the XUI tests
+   (`python -m unittest tools.xui.test_edit_patch tools.xui.test_xui`).
+3. Game, scratch profile: open Options > PC Settings. Screenshot the page. Check that all five rows
+   and the Back button fit on screen, labels aren't cut off or overlapping, the 3-button rows are
+   evenly spaced, and left/right moves along a row (wrapping) while up/down moves between rows.
+4. Change each row once, back out, and check `crackdown.toml` gets the matching key (`vsync = true`,
+   `resolution_scale = 3`, `aspect_ratio = "21:9"`, `swap_post_effect = "fxaa"`,
+   `fullscreen = false`), and that choosing the first option removes it again. Reopen the page: the
+   log line `pc settings: initialized screen 26 (selections ...)` and the highlighted buttons match
+   the file. Set `aspect_ratio = "4:3"` in the file: that row then shows nothing selected.
+5. Restart with a couple of changed settings and check they took effect (F3 resolution, aspect).

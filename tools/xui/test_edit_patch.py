@@ -100,8 +100,10 @@ def display_fixture():
         if ident not in ('XuiBackButton1', 'footer'):
             opacity(editor, page, obj, position=(ident == 'pageTitle'))
         if ident == 'preset':
-            add(editor, obj, 'XuiRadioButton', 'XuiRadioButton1', NavLeft='XuiRadioButton2', NavRight='XuiRadioButton2')
-            add(editor, obj, 'XuiRadioButton', 'XuiRadioButton2', NavLeft='XuiRadioButton1', NavRight='XuiRadioButton1')
+            add(editor, obj, 'XuiRadioButton', 'XuiRadioButton1', NavLeft='XuiRadioButton2', NavRight='XuiRadioButton2',
+                Position=[0.0, 0.0, 0.0])
+            add(editor, obj, 'XuiRadioButton', 'XuiRadioButton2', NavLeft='XuiRadioButton1', NavRight='XuiRadioButton1',
+                Position=[200.0, 0.0, 0.0])
     return editor.finish()
 
 
@@ -363,19 +365,27 @@ class RecipeTests(unittest.TestCase):
         self.assertEqual(edit.property_value(page, 'ClassOverride'), 'scene')
         self.assertEqual(edit.property_value(page, 'DefaultFocus'), 'framerate')
         self.assertEqual(edit.property_value(edit.find(page, 'pageTitle'), 'Visual'), 'XuiLabel')
-        controls = [edit.find(page, name) for name in ['framerate', 'resolution', 'display']]
+        names = ['framerate', 'resolution', 'aspect', 'antialiasing', 'display']
+        controls = [edit.find(page, name) for name in names]
         for i, group in enumerate(controls):
             self.assertEqual(group['class'], 'XuiRadioGroup')
             for obj in [group]+group['children']:
-                self.assertEqual(edit.property_value(obj, 'NavDown'), controls[(i+1)%3]['id'])
+                self.assertEqual(edit.property_value(obj, 'NavDown'), controls[(i+1)%len(controls)]['id'])
                 self.assertEqual(edit.property_value(obj, 'NavUp'), controls[i-1]['id'])
-            self.assertEqual(len(group['children']), 2)
-            for j, button in enumerate(group['children']):
-                self.assertEqual(edit.property_value(button, 'NavLeft'), group['children'][1-j]['id'])
-                self.assertEqual(edit.property_value(button, 'NavRight'), group['children'][1-j]['id'])
+            buttons = group['children']
+            self.assertEqual(len(buttons), len(mod_menus.ROWS[i][2]))
+            self.assertEqual([b['id'] for b in buttons], [f'XuiRadioButton{n+1}' for n in range(len(buttons))])
+            for j, button in enumerate(buttons):
+                self.assertEqual(edit.property_value(button, 'NavLeft'), buttons[j-1]['id'])
+                self.assertEqual(edit.property_value(button, 'NavRight'), buttons[(j+1)%len(buttons)]['id'])
+                self.assertEqual(edit.property_value(button, 'Text'), mod_menus.ROWS[i][2][j])
+            if len(buttons) > 2:  # new buttons continue the original 1 -> 2 step
+                p = [edit.property_value(b, 'Position') for b in buttons]
+                self.assertEqual([b - a for a, b in zip(p[1], p[2])], [b - a for a, b in zip(p[0], p[1])])
         self.assertEqual(edit.property_value(controls[0]['children'][1], 'Text'), '30 fps (original)')
-        self.assertEqual(edit.property_value(controls[2]['children'][1], 'Text'), 'Windowed')
-        for ident in ['framerateLabel', 'resolutionLabel', 'displayLabel', 'restartNotice']:
+        self.assertEqual(edit.property_value(controls[4]['children'][1], 'Text'), 'Windowed')
+        self.assertEqual(edit.property_value(controls[1]['children'][2], 'Text'), '4K')
+        for ident in [n + 'Label' for n in names] + ['restartNotice']:
             caption = edit.find(page, ident)
             self.assertEqual(edit.property_value(caption, 'Visual'), 'XuiLabel')
             self.assertFalse(edit.property_value(caption, 'Enabled'))
@@ -402,6 +412,7 @@ class RecipeTests(unittest.TestCase):
         labels = {r['path']: r['value'] for r in xus.parse(mod_menus.pc_localization(local))}
         self.assertEqual(labels['options.pageTitle.Text'], 'PC Settings')
         self.assertEqual(labels['options.display.XuiRadioButton2.Text'], 'Windowed')
+        self.assertEqual(labels['options.aspect.XuiRadioButton3.Text'], '32:9')
         self.assertNotIn('options.footer.Text', labels)
         for path in labels:
             edit.find(page, '/'.join(path.split('.')[:-1]))
