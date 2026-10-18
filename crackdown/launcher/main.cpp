@@ -116,7 +116,7 @@ int main(int argc,char** argv) {
   try {
     auto probe=home/(".launcher-write-"+std::to_string(SDL_GetTicks()));
     if(fs::exists(probe)) throw std::runtime_error("Write probe already exists");
-    std::ofstream out(probe); if(!out) throw std::runtime_error("Extract the beta into a writable folder, such as Downloads or Documents");
+    std::ofstream out(probe); if(!out) throw std::runtime_error("Extract the ZIP into a writable folder, such as Downloads or Documents");
     out<<"probe"; out.close(); if(!out) throw std::runtime_error("Cannot write next to the launcher"); fs::remove(probe);
   } catch(const std::exception& e) { error=e.what(); writable=false; }
   try {
@@ -382,7 +382,7 @@ int main(int argc,char** argv) {
     visuals->logo(ui_scale);
     ImGui::SameLine();
     ImGui::SetCursorPosY(ImGui::GetCursorPosY()+std::max(0.f,(ImGui::GetItemRectSize().y-ImGui::GetTextLineHeight())*.5f));
-    ImGui::TextDisabled("RECOMP / BETA %s",LAUNCHER_VERSION);
+    ImGui::TextDisabled("RECOMP %s",LAUNCHER_VERSION);
     for(int i=0;i<tab_count;++i) {
       if(i) ImGui::SameLine(0,6*ui_scale);
       bool active=i==tab;
