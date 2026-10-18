@@ -108,7 +108,7 @@ ROWS = [
     ('display', 'Display', ['Fullscreen', 'Windowed']),
 ]
 ROW_TOP = 287.0    # first radio group (was 351 with three rows)
-ROW_PITCH = 68.0   # was 60; leaves LABEL_ABOVE + 2 between a row's buttons and the next label
+ROW_PITCH = 68.0   # was 60; 36 (row) + LABEL_ABOVE + 2 px gap
 # Caption text is drawn from the top of its box (PC checks 4-4c): 26/28-high boxes cut
 # descenders, and a label 36 above its row overlapped the row above at 64 pitch.
 LABEL_ABOVE = 30.0
