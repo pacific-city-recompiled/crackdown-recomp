@@ -82,3 +82,16 @@ its Version Tracking could cross-check matches, but it has no VMX128, and our co
   (Start, stick down x3, A x6) enters Keys to the City and plays 60 s in the city with no crash. The HUD shows
   "Show keys to the city".
 - The intro logos are not skipped (no intro hook), so replays need a 40 s longer menu segment than disc ones.
+
+## 1.0 features to carry over (mapped 2026-10-18)
+
+Ultrawide lead from the 1.0 test pass (docs/re-notes.md on the 1.0 branch), mapped to the update; all functions
+are identical (ratio 1.00), and both constants hold the same values:
+
+| What | Disc | Update |
+|---|---|---|
+| Camera aspect ratio (float, 4:3 = 0x3FAAAAAB in the image) | 0x82BAA498 | 0x82C3ACB8 |
+| 16:9 constant the camera ctor loads (0x3FE38E39) | 0x820ED554 | 0x820F7ED4 |
+| Camera constructor | 0x822846A0 | 0x822AB4D0 |
+| Dev-console `widescreen` command | 0x8250AC58 | 0x82570218 |
+| Projection builders | 0x82285058, 0x823265E0, 0x82295D10, 0x82296748 | 0x822ABE88, 0x8235A958, 0x822BE448, 0x822BEE80 |
