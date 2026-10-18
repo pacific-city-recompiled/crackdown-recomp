@@ -135,6 +135,10 @@ own 28-high box was too short for 20 pt. Now 34 high (1.7 x point size), 36 abov
 higher. Re-check 4c: regenerate the patch, rebuild, one screenshot of the page (labels whole, nothing
 overlapping).
 
+Re-check 4c (692e8ff): labels whole, but they now overlapped the bottom of the row above (caption
+text is drawn from the top of its box). Now: label box 34 high and 30 above its row, rows 68 apart,
+page 12 higher. Re-check 4d: regenerate, rebuild, one screenshot (labels whole, clear of both rows).
+
 ## PC task 5: camera turn speed (stick sensitivity)
 
 Austin finds the right-stick camera very slow at every frame rate, with no way to change it. Our input

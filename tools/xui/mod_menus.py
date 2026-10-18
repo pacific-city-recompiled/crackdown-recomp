@@ -107,9 +107,11 @@ ROWS = [
     ('antialiasing', 'Anti-aliasing', ['Off', 'FXAA']),
     ('display', 'Display', ['Fullscreen', 'Windowed']),
 ]
-ROW_TOP = 299.0    # first radio group (was 351 with three rows)
-ROW_PITCH = 64.0   # was 60; label box sits LABEL_ABOVE above its group
-LABEL_ABOVE = 36.0  # PC checks 4/4b: 20 pt captions in 26 or 28 high boxes lost descenders
+ROW_TOP = 287.0    # first radio group (was 351 with three rows)
+ROW_PITCH = 68.0   # was 60; leaves LABEL_ABOVE + 2 between a row's buttons and the next label
+# Caption text is drawn from the top of its box (PC checks 4-4c): 26/28-high boxes cut
+# descenders, and a label 36 above its row overlapped the row above at 64 pitch.
+LABEL_ABOVE = 30.0
 
 
 def add_radio_buttons(editor, group, count):
@@ -167,7 +169,7 @@ def pc_scene(data):
     # Make room above the original controls; keep the native collapse animation.
     # 1.0 has five rows instead of three (ROW_PITCH apart), so the title and
     # background start EXTRA higher and the background is taller by the added rows.
-    extra = 66.0
+    extra = 78.0
     editor.set_property(title, 'Position', [346.0, 289.0 - extra, 0.0])
     background = editor.find('options/background2')
     last = ROW_TOP + (len(ROWS) - 1) * ROW_PITCH
