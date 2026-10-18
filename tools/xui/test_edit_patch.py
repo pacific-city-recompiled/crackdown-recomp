@@ -101,9 +101,9 @@ def display_fixture():
             opacity(editor, page, obj, position=(ident == 'pageTitle'))
         if ident == 'preset':
             add(editor, obj, 'XuiRadioButton', 'XuiRadioButton1', NavLeft='XuiRadioButton2', NavRight='XuiRadioButton2',
-                Position=[0.0, 0.0, 0.0])
+                Position=[0.0, 0.0, 0.0], Width=180.0)
             add(editor, obj, 'XuiRadioButton', 'XuiRadioButton2', NavLeft='XuiRadioButton1', NavRight='XuiRadioButton1',
-                Position=[200.0, 0.0, 0.0])
+                Position=[200.0, 0.0, 0.0], Width=180.0)
     return editor.finish()
 
 
@@ -379,9 +379,13 @@ class RecipeTests(unittest.TestCase):
                 self.assertEqual(edit.property_value(button, 'NavLeft'), buttons[j-1]['id'])
                 self.assertEqual(edit.property_value(button, 'NavRight'), buttons[(j+1)%len(buttons)]['id'])
                 self.assertEqual(edit.property_value(button, 'Text'), mod_menus.ROWS[i][2][j])
-            if len(buttons) > 2:  # new buttons continue the original 1 -> 2 step
-                p = [edit.property_value(b, 'Position') for b in buttons]
-                self.assertEqual([b - a for a, b in zip(p[1], p[2])], [b - a for a, b in zip(p[0], p[1])])
+            # Every row spans the preset's two buttons (0..380) with its 20 gap.
+            p = [edit.property_value(b, 'Position') for b in buttons]
+            w = [edit.property_value(b, 'Width') for b in buttons]
+            self.assertAlmostEqual(p[-1][0] + w[-1], 380.0, places=3)
+            for j in range(1, len(buttons)):
+                self.assertAlmostEqual(p[j][0] - p[j-1][0] - w[j-1], 20.0, places=3)
+                self.assertEqual(w[j], w[0])
         self.assertEqual(edit.property_value(controls[0]['children'][1], 'Text'), '30 fps (original)')
         self.assertEqual(edit.property_value(controls[4]['children'][1], 'Text'), 'Windowed')
         self.assertEqual(edit.property_value(controls[1]['children'][2], 'Text'), '4K')

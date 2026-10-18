@@ -107,8 +107,27 @@ FXAA) and Display (Fullscreen / Windowed). Hooks touched: ctor 0x8266B928 and no
    `resolution_scale = 3`, `aspect_ratio = "21:9"`, `swap_post_effect = "fxaa"`,
    `fullscreen = false`), and that choosing the first option removes it again. Reopen the page: the
    log line `pc settings: initialized screen 26 (selections ...)` and the highlighted buttons match
-   the file. Set `aspect_ratio = "4:3"` in the file: that row then shows nothing selected.
+   the file. Quit, set `aspect_ratio = "4:3"` in the file and start the game again: the log line
+   shows `selections 0 0 -1 0 0` and `aspect_ratio 4:3`, and that row has nothing selected.
 5. Restart with a couple of changed settings and check they took effect (F3 resolution, aspect).
+
+### Result (2026-10-18, 5a26187)
+
+Builds and tests pass; the regenerated Scene.xpatch (3,276 -> 4,022 bytes, no original literal
+windows) is committed. Navigation (wrapping left/right, up/down between rows), saving and removing
+each key, reading the file back on reopen, and restart applying 21:9 and windowed all pass. Failed:
+the third button of the 4K and 32:9 rows sat outside the panel; labels were clipped at the bottom
+("Settinqs", "Displav"); with `aspect_ratio = "4:3"` the log showed `selections 0 0 0 0 0` and 16:9
+highlighted (the file was probably edited without a restart; the log now prints the aspect value).
+
+Fixes: rows with three buttons share the two-button span with narrower buttons; labels are 28 high,
+31 above their row; title 40 high; rows 64 apart; the page starts 20 higher, so Back sits only 12 lower than before.
+
+### Re-check 4b
+
+Regenerate the patch (step 1; Scene.xpatch must change again), rebuild, then repeat step 3 (one
+screenshot of the page, every row's buttons inside the panel, no clipped labels, Back on screen) and
+the 4:3 line of step 4 with a restart.
 
 ## PC task 5: camera turn speed (stick sensitivity)
 

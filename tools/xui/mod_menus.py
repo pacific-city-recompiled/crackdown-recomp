@@ -107,32 +107,40 @@ ROWS = [
     ('antialiasing', 'Anti-aliasing', ['Off', 'FXAA']),
     ('display', 'Display', ['Fullscreen', 'Windowed']),
 ]
-ROW_TOP = 311.0    # first radio group (was 351 with three rows)
-ROW_PITCH = 58.0   # was 60; label sits 25 above its group
+ROW_TOP = 299.0    # first radio group (was 351 with three rows)
+ROW_PITCH = 64.0   # was 60; label box (28 high) sits 31 above its group
+LABEL_ABOVE = 31.0  # PC check 4: at 25 above with height 26, descenders were clipped
 
 
 def add_radio_buttons(editor, group, count):
     """Grow a cloned preset group (XuiRadioButton1/2) to count buttons.
 
-    New buttons repeat the 1 -> 2 position step; NavLeft/NavRight wrap around the row.
+    The preset's two buttons fill the panel width, so three or more buttons are
+    narrowed to share that same span with the original gap between them
+    (PC check 4, 2026-10-18: a third button at the old step sat outside the
+    panel). NavLeft/NavRight wrap around the row.
     """
     buttons = group['children']
     if count < len(buttons):
         raise ValueError('radio rows need at least the two preset buttons')
-    position = lambda b: [p['value'] for p in b['properties'] if p['name'] == 'Position']
+    value = lambda b, name: next((p['value'] for p in b['properties'] if p['name'] == name), None)
     if count > len(buttons):
-        if not position(buttons[0]) or not position(buttons[1]):
-            raise ValueError('preset radio buttons have no Position to repeat')
-        step = [b - a for a, b in zip(position(buttons[0])[0], position(buttons[1])[0])]
-    while len(group['children']) < count:
-        previous = group['children'][-1]
-        n = len(group['children']) + 1
-        button = editor.clone(previous, group, f'XuiRadioButton{n}')
-        editor.set_property(button, 'Position', [p + d for p, d in zip(position(previous)[0], step)])
-        try:
-            editor.clone_timelines(group, previous, button)
-        except ValueError:
-            pass  # no group-owned animations for the buttons
+        first, second = value(buttons[0], 'Position'), value(buttons[1], 'Position')
+        width = value(buttons[0], 'Width')
+        if first is None or second is None or width is None:
+            raise ValueError('preset radio buttons have no Position/Width to lay out')
+        gap = (second[0] - first[0]) - width
+        new_width = (second[0] - first[0] + width - (count - 1) * gap) / count
+        while len(group['children']) < count:
+            previous = group['children'][-1]
+            button = editor.clone(previous, group, f'XuiRadioButton{len(group["children"]) + 1}')
+            try:
+                editor.clone_timelines(group, previous, button)
+            except ValueError:
+                pass  # no group-owned animations for the buttons
+        for i, button in enumerate(group['children']):
+            editor.set_property(button, 'Width', new_width)
+            editor.set_property(button, 'Position', [first[0] + i * (new_width + gap)] + list(first[1:]))
     buttons = group['children']
     for i, button in enumerate(buttons):  # wraps, like the original pair
         editor.set_property(button, 'NavRight', buttons[(i + 1) % len(buttons)]['id'])
@@ -154,12 +162,12 @@ def pc_scene(data):
         editor.set_property(page, name, 'options')
     title = editor.find('options/pageTitle')
     for name, value in [('Text', 'PC Settings'), ('Width', 590.0),
-                        ('Height', 36.0), ('Visual', 'XuiLabel'), ('PointSize', 24.0)]:
+                        ('Height', 40.0), ('Visual', 'XuiLabel'), ('PointSize', 24.0)]:
         editor.set_property(title, name, value)
     # Make room above the original controls; keep the native collapse animation.
     # 1.0 has five rows instead of three (ROW_PITCH apart), so the title and
     # background start EXTRA higher and the background is taller by the added rows.
-    extra = 40.0
+    extra = 60.0
     editor.set_property(title, 'Position', [346.0, 289.0 - extra, 0.0])
     background = editor.find('options/background2')
     last = ROW_TOP + (len(ROWS) - 1) * ROW_PITCH
@@ -180,7 +188,7 @@ def pc_scene(data):
         # This game's Element class predates Hittable/DisableFocusRecursion.
         # Use verified Control fields; unsupported bits desynchronize XUR load.
         for name, value in [('Text', text), ('Width', 590.0), ('Visual', 'XuiLabel'),
-                            ('Height', 26.0), ('PointSize', size), ('Position', [354.0, y, 0.0]),
+                            ('Height', 28.0), ('PointSize', size), ('Position', [354.0, y, 0.0]),
                             ('Enabled', False), ('UnfocusedInput', False)]:
             editor.set_property(label, name, value)
         # Position and any native focus/nav keys must not restore old rows.
@@ -207,7 +215,7 @@ def pc_scene(data):
         for button, text in zip(group['children'], texts):
             editor.set_property(button, 'Text', text)
         controls.append(group)
-        caption(ident+'Label', label, y-25.0)
+        caption(ident+'Label', label, y-LABEL_ABOVE)
     nav_cycle(editor, controls)
     for group in controls:
         for button in group['children']:

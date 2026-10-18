@@ -8,6 +8,7 @@
 #include <string_view>
 #include <utility>
 
+#include <rex/cvar.h>
 #include <rex/hook.h>
 #include <rex/logging/macros.h>
 
@@ -220,7 +221,8 @@ REX_HOOK_RAW(sub_8266B928) {
     SetSelection(ctx, base, child, selection);
     selections += (i ? " " : "") + std::to_string(selection);
   }
-  REXLOG_INFO("pc settings: initialized screen 26 (selections {}; restart required)", selections);
+  REXLOG_INFO("pc settings: initialized screen 26 (selections {}; aspect_ratio {}; restart required)", selections,
+              rex::cvar::Query<std::string>("aspect_ratio"));
 }
 
 // Guest 0x826587F8 (generated .45.cpp): "bl 0x8268d318", "lwz r11,4(r3)",
