@@ -83,6 +83,18 @@ std::optional<ApConnection> parse_ap_uri(const std::string& uri);
 std::string redacted_config(const fs::path& config);
 // "seed S, slot N" when the game has bound this profile to a seed, else empty.
 std::string ap_binding(const fs::path& saves);
+// System Link co-op (SETUP.md "Co-op"), written to crackdown.toml. Without net_mode the game
+// greys out Campaign > Play Now - Co-op (the HDD check, hooks_storage.cpp). Player 1 hosts;
+// player 2 joins with a second profile identity (save folder B100000000000002), since both games
+// would otherwise sign in as the same player.
+struct CoopSettings { bool enabled=false, join=false; std::string own_address, partner_address; };
+inline constexpr const char* kCoopConfigKeys[]={"net_mode","net_bind_ip","net_peer_endpoints","coop_profile_xuid","coop_profile_name"};
+CoopSettings load_coop(const toml::table& config);
+// Every co-op key removed when disabled. Throws when an address isn't a plain IPv4 address or
+// both are the same.
+std::map<std::string, std::optional<std::string>> coop_changes(const CoopSettings& coop);
+// This PC's IPv4 addresses (home network, Tailscale), loopback left out.
+std::vector<std::string> local_ipv4_addresses();
 // Keep the launcher API while using the same editor in the game.
 using crackdown::config::read_config;
 using crackdown::config::setting;
