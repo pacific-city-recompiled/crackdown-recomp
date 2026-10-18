@@ -138,6 +138,8 @@ overlapping).
 Re-check 4c (692e8ff): labels whole, but they now overlapped the bottom of the row above (caption
 text is drawn from the top of its box). Now: label box 34 high and 30 above its row, rows 68 apart,
 page 12 higher. Re-check 4d: regenerate, rebuild, one screenshot (labels whole, clear of both rows).
+Also build `CrackdownLauncher.exe`: CONTROLS has "Camera turn speed" (0.25x-4.00x); 2.00x saves
+`camera_sensitivity = 2.00`, 1.00x removes it, and the game log then shows `camera_sensitivity: 2`.
 
 ## PC task 5: camera turn speed (stick sensitivity)
 

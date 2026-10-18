@@ -107,6 +107,7 @@ int main(int argc,char** argv) {
   std::string error,report,hash,crash; fs::path game; bool verified=false,writable=true,close_on_play=false;
   Changes changes; int scale=1,window_size=0,rate=0,aa=0,aniso=2,aspect=0; [[maybe_unused]] int filter=0; bool fullscreen=true,mute=false;
   float mouse_sens=1.0f;
+  float camera_speed=1.0f;
   bool skip_intro=true,mnk=false,auto_updates=false,beta_channel=false,ask_updates=false;
   int monitor=0,language=1,tab=0; bool focus_page=true; std::string device="keyboard",input_backend="sdl";
   fs::file_time_type log_since{};
@@ -135,6 +136,7 @@ int main(int argc,char** argv) {
     language=static_cast<int>(value<int64_t>(t,"user_language",1)); if(language<1||language>10) language=1;
     skip_intro=value<bool>(t,"skip_intro_videos",true); mnk=value<bool>(t,"mnk_mode",false);
     mouse_sens=std::clamp(static_cast<float>(value<double>(t,"mnk_sensitivity",1.0)),0.1f,5.0f);
+    camera_speed=std::clamp(static_cast<float>(value<double>(t,"camera_sensitivity",1.0)),0.25f,4.0f);
     input_backend=value<std::string>(t,"input_backend","sdl"); monitor=std::clamp(static_cast<int>(value<int64_t>(t,"monitor",0)),0,16);
   } catch(const std::exception& e) { error=e.what(); }
   try { manifest=load_manifest(home/"game-manifest.txt"); } catch(const std::exception& e) { error=e.what(); }
@@ -461,6 +463,11 @@ int main(int argc,char** argv) {
       if(tab==4) {
         ImGui::Text("Input backend: %s",input_backend.c_str());
         focus_first(!blocked);
+        if(ImGui::SliderFloat("Camera turn speed",&camera_speed,0.25f,4.0f,"%.2fx")) {
+          char text[16]; std::snprintf(text,sizeof(text),"%.2f",camera_speed);
+          changes["camera_sensitivity"]=std::abs(camera_speed-1.0f)<0.005f?std::nullopt:std::optional<std::string>(text);
+        }
+        ImGui::TextWrapped("How fast the right stick (or the mouse) turns the camera. 1.00x is the original speed.");
         if(ImGui::Checkbox("Mouse / keyboard mode",&mnk)) changes["mnk_mode"]=mnk?std::optional<std::string>("true"):std::nullopt;
         if(mnk) {
           if(ImGui::SliderFloat("Mouse sensitivity",&mouse_sens,0.1f,5.0f,"%.2f")) {
