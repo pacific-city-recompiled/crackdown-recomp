@@ -262,17 +262,18 @@ void Image::extract(const fs::path& destination, const std::atomic_bool& cancel,
   } catch (...) { remove_quietly(destination); throw; }
 }
 void install_image(const fs::path& iso, const fs::path& home, const std::vector<Entry>& manifest,
-                   const std::atomic_bool& cancel, Progress extracted, Progress verified) {
+                   const std::atomic_bool& cancel, Progress extracted, Progress verified,
+                   const std::string& expected_xex, const std::string& manifest_name) {
   if (fs::exists(home/"game")) throw std::runtime_error("A game folder already exists. Select that folder or move it before importing an ISO");
   Image image(iso);
   auto hash=image.xex_hash(&cancel);
-  if (hash!=supported_xex) throw std::runtime_error("Unsupported default.xex version. SHA256: " + hash);
+  if (hash!=expected_xex) throw std::runtime_error("Unsupported default.xex version. SHA256: " + hash);
   image.validate(manifest); check_cancel(&cancel);
   auto staging=home/("game-install-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
   image.extract(staging,cancel,extracted);
   try {
-    verify_folder(staging,manifest,&cancel,Check::full,verified);
-    std::ofstream stamp(staging/".verified"); stamp << hash_file(home/"game-manifest.txt") << '\n' << hash << '\n';
+    verify_folder(staging,manifest,&cancel,Check::full,verified,expected_xex);
+    std::ofstream stamp(staging/".verified"); stamp << hash_file(home/manifest_name) << '\n' << hash << '\n';
     stamp.close(); if (!stamp) throw std::runtime_error("Cannot write verification receipt");
     check_cancel(&cancel);
     if (fs::exists(home/"game")) throw std::runtime_error("Game folder appeared during extraction");

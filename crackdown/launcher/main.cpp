@@ -1,4 +1,5 @@
 #include "core.h"
+#include "games.h"
 #include "platform.h"
 #include "v2.h"
 #include "visuals.h"
@@ -102,7 +103,14 @@ int main(int argc,char** argv) {
   io.ConfigNavEscapeClearFocusWindow=false;
   auto visuals=std::make_unique<Visuals>(renderer,home);
   ImGui_ImplSDL3_InitForSDLRenderer(window,renderer); ImGui_ImplSDLRenderer3_Init(renderer);
-  fs::path config=home/"crackdown.toml", preferences=home/"launcher.toml";
+  // One launcher, several games (games.h): the selected game decides the folder, exe, settings file, manifest,
+  // save folder and log prefix. launcher.toml stays shared.
+  fs::path preferences=home/"launcher.toml";
+  int game_sel=0;
+  try { game_sel=game_index(value<std::string>(read_config(preferences),"selected_game","cd1")); } catch(const std::exception&) {}
+  for(int i=1;i<argc;++i) { std::string a=argv[i]; if(a.starts_with("--game=")) game_sel=game_index(a.substr(7)); }
+  const GameProfile* gp=&kGames[game_sel];
+  fs::path ghome=game_home(home,*gp), config=ghome/gp->config;
   Task task; Picker picker; GameProcess process; std::vector<Entry> manifest;
   std::string error,report,hash,crash; fs::path game; bool verified=false,writable=true,close_on_play=false;
   Changes changes; int scale=1,window_size=0,rate=0,aa=0,aniso=2,aspect=0; [[maybe_unused]] int filter=0; bool fullscreen=true,mute=false;
@@ -119,16 +127,18 @@ int main(int argc,char** argv) {
     std::ofstream out(probe); if(!out) throw std::runtime_error("Extract the ZIP into a writable folder, such as Downloads or Documents");
     out<<"probe"; out.close(); if(!out) throw std::runtime_error("Cannot write next to the launcher"); fs::remove(probe);
   } catch(const std::exception& e) { error=e.what(); writable=false; }
+  // Everything read from the selected game's settings file and manifest; rerun when the game changes.
+  auto read_game=[&] {
+  config=ghome/gp->config; manifest.clear();
   try {
-
     auto t=read_config(config);
     std::string configured=value<std::string>(t,"game_data_root","");
-    game=configured.empty()?home/"game":fs::u8path(configured);
-    if(game.is_relative()) game=home/game;
+    game=configured.empty()?ghome/"game":fs::u8path(configured);
+    if(game.is_relative()) game=ghome/game;
     scale=static_cast<int>(value<int64_t>(t,"resolution_scale",1));
     fullscreen=value<bool>(t,"fullscreen",true); mute=value<bool>(t,"audio_mute",false);
     auto f=value<std::string>(t,"present_effect","bilinear"); filter=f=="cas"?1:f=="fsr"?2:0;
-    rate=value<bool>(t,"vsync",false)?1:0;
+    rate=game_sel==0?(value<bool>(t,"vsync",false)?1:0):(value<int64_t>(t,"fps_cap",0)==60?1:0);
     auto ratio=value<std::string>(t,"aspect_ratio","16:9"); aspect=ratio=="16:10"?1:ratio=="21:9"?2:ratio=="32:9"?3:ratio=="4:3"?4:0;
     auto post=value<std::string>(t,"swap_post_effect","none"); aa=post=="fxaa"?1:post=="fxaa_extreme"?2:0;
     // anisotropic_override: -1 game's own, 2 = 2x, 3 = 4x (SDK default), 4 = 8x, 5 = 16x.
@@ -142,8 +152,10 @@ int main(int argc,char** argv) {
     camera_speed=std::clamp(static_cast<float>(value<double>(t,"camera_sensitivity",1.0)),0.25f,4.0f);
     input_backend=value<std::string>(t,"input_backend","sdl"); monitor=std::clamp(static_cast<int>(value<int64_t>(t,"monitor",0)),0,16);
   } catch(const std::exception& e) { error=e.what(); }
+  try { manifest=load_manifest(ghome/gp->manifest); } catch(const std::exception& e) { error=e.what(); }
+  };
+  read_game();
   coop_addresses=local_ipv4_addresses();
-  try { manifest=load_manifest(home/"game-manifest.txt"); } catch(const std::exception& e) { error=e.what(); }
   try {
     auto prefs=read_config(preferences);
     auto_updates=value<bool>(prefs,"auto_updates",false); beta_channel=value<bool>(prefs,"beta_updates",false);
@@ -152,13 +164,20 @@ int main(int argc,char** argv) {
     int lh=std::clamp(static_cast<int>(value<int64_t>(prefs,"launcher_height",int(720*initial_dpi))),600,2160);
     SDL_SetWindowSize(window,lw,lh);
     close_on_play=value<bool>(prefs,"close_on_play",false);
-    // Portable mode (portable.txt next to the launcher): saves live in userdata/ here, and the
-    // game, which sees the same marker next to crackdown.exe, uses it too.
-    portable=fs::is_regular_file(home/"portable.txt");
-    user=fs::absolute(portable?home/"userdata":default_user_folder()).lexically_normal();
-    profiles=list_profiles(user); profile=value<std::string>(prefs,"profile","");
-    if(std::find(profiles.begin(),profiles.end(),profile)==profiles.end()) profile.clear();
   } catch(const std::exception& e) { error=e.what(); }
+  // Save root and profile of the selected game; rerun when the game changes.
+  auto read_user=[&] {
+    try {
+      auto prefs=read_config(preferences);
+      // Portable mode (portable.txt next to the game's exe): saves live in userdata/ there, and the
+      // game, which sees the same marker next to its exe, uses it too.
+      portable=fs::is_regular_file(ghome/"portable.txt");
+      user=fs::absolute(portable?ghome/"userdata":default_user_folder(gp->user_folder)).lexically_normal();
+      profiles=list_profiles(user); profile=value<std::string>(prefs,gp->profile_key,"");
+      if(std::find(profiles.begin(),profiles.end(),profile)==profiles.end()) profile.clear();
+    } catch(const std::exception& e) { error=e.what(); }
+  };
+  read_user();
   // Archipelago settings belong to the selected (named) profile: one profile per seed.
   ApConnection ap; char ap_server[128]{},ap_slot[64]{},ap_password[128]{}; std::string ap_bound;
   // --connect <archipelago:// link> (from the Archipelago Launcher). It waits on the ARCHIPELAGO tab
@@ -196,10 +215,10 @@ int main(int argc,char** argv) {
       try {
         auto folder=path; auto check=job==Job::quick_check?Check::quick:Check::full;
         if(job==Job::import_iso) {
-          install_image(path,home,manifest,task.cancel,phase("Extracting game files..."),phase("Checking every extracted file..."));
-          folder=home/"game"; check=Check::quick;
+          install_image(path,ghome,manifest,task.cancel,phase("Extracting game files..."),phase("Checking every extracted file..."),gp->xex_hash,gp->manifest);
+          folder=ghome/"game"; check=Check::quick;
         }
-        auto h=verify_folder_cached(folder,manifest,home/"verified-files.txt",&task.cancel,check,phase(check==Check::full?"Checking every game file (one time)...":"Verifying game files..."));
+        auto h=verify_folder_cached(folder,manifest,ghome/"verified-files.txt",&task.cancel,check,phase(check==Check::full?"Checking every game file (one time)...":"Verifying game files..."),gp->xex_hash);
         std::lock_guard lock(task.mutex); task.folder=fs::absolute(folder); task.hash=h; task.status="Game files verified"; task.success=true;
       } catch(const std::exception& e) { task.message(e.what()); }
       task.done=true;
@@ -207,7 +226,7 @@ int main(int argc,char** argv) {
   };
   bool busy=false;
   if(writable && !manifest.empty() && fs::is_directory(game)) { begin(game,Job::quick_check); busy=true; }
-  auto leftovers=writable?unfinished_imports(home,game):std::vector<fs::path>{};
+  auto leftovers=writable?unfinished_imports(ghome,game):std::vector<fs::path>{};
   if(review) SDL_SetWindowSize(window,review_width,review_height);
   const char* tabs[]={"HOME","DISPLAY","GRAPHICS","GAMEPLAY","CONTROLS","SAVES","ARCHIPELAGO","ABOUT"};
   constexpr int tab_count=8, tab_ap=6, tab_about=7;
@@ -264,20 +283,39 @@ int main(int argc,char** argv) {
   browse_roots.push_back("/");
 #endif
   auto show_dialog=[&](Dialog next) { dialog=next; open_dialog=true; dialog_focus=true; };
+  // Selects another game: unsaved settings of the old one are dropped, everything game-specific is reloaded,
+  // and the new game's files get the usual quick check.
+  auto switch_game=[&](int index) {
+    game_sel=index; gp=&kGames[index]; ghome=game_home(home,*gp);
+    changes.clear(); error.clear(); crash.clear(); report.clear(); verified=false; hash.clear(); visuals->clear_art();
+    read_game(); read_user(); load_ap();
+    if(tab==tab_ap&&!gp->archipelago) tab=0;
+    focus_page=true;
+    try { update_config(preferences,{{"selected_game",toml_string(gp->id)}}); } catch(const std::exception& e) { error=e.what(); }
+    leftovers=writable?unfinished_imports(ghome,game):std::vector<fs::path>{};
+    if(writable && !manifest.empty() && fs::is_directory(game)) { begin(game,Job::quick_check); busy=true; }
+  };
   auto launch=[&] {
     try {
       for(const char* key:kApConfigKeys) changes[key]=std::nullopt;
       update_config(config,changes); changes.clear();
-      hash=verify_folder_cached(game,manifest,home/"verified-files.txt"); log_since=fs::file_time_type::clock::now();
+      hash=verify_folder_cached(game,manifest,ghome/"verified-files.txt",nullptr,Check::quick,{},gp->xex_hash); log_since=fs::file_time_type::clock::now();
       auto args=profile_args(user,profile); args.insert(args.begin(),"--game_data_root="+utf8(game));
+      if(gp->title_update) {
+        // Crackdown 2 runs only with its title update: default.xexp beside default.xex (the SDK applies it) and the
+        // update's files as update:\ (tu/ next to the exe, or game\TU).
+        if(!fs::is_regular_file(game/"default.xexp")) throw std::runtime_error(std::string(gp->title)+" needs its title update: default.xexp is missing in "+utf8(game));
+        auto tu=fs::is_directory(ghome/"tu")?ghome/"tu":game/"TU";
+        if(fs::is_directory(tu)) args.push_back("--update_data_root="+utf8(tu));
+      }
       // The game reads the password from the profile's connection.toml itself.
       if(!profile.empty()) save_ap();
       auto extra=ap_args(profile.empty()?ApConnection{}:ap); args.insert(args.end(),extra.begin(),extra.end());
-      process.start(home,args); error.clear(); crash.clear(); if(close_on_play) quit=true;
+      process.start(ghome,args,gp->exe); error.clear(); crash.clear(); if(close_on_play) quit=true;
     } catch(const std::exception& e) { error=e.what(); verified=false; visuals->clear_art(); }
   };
   auto save_profile=[&](const std::string& name) {
-    update_config(preferences,{{"profile",name.empty()?std::nullopt:std::optional<std::string>(toml_string(name))}}); profile=name; load_ap();
+    update_config(preferences,{{gp->profile_key,name.empty()?std::nullopt:std::optional<std::string>(toml_string(name))}}); profile=name; load_ap();
   };
   auto save_settings=[&] { try { update_config(config,changes); changes.clear(); error.clear(); } catch(const std::exception& e) { error=e.what(); } };
   bool auto_focus=true;
@@ -322,7 +360,11 @@ int main(int argc,char** argv) {
         catch(const std::exception& e) { error=e.what(); }
       }
     }
-    if(switch_tab && !ask_updates && !popup_before && !editing_before) { tab=(tab+switch_tab%tab_count+tab_count)%tab_count; focus_page=true; }
+    if(switch_tab && !ask_updates && !popup_before && !editing_before) {
+      tab=(tab+switch_tab%tab_count+tab_count)%tab_count;
+      if(tab==tab_ap&&!gp->archipelago) tab=(tab+(switch_tab>0?1:-1)+tab_count)%tab_count;
+      focus_page=true;
+    }
     {
       std::lock_guard lock(picker.mutex);
       if(!picker.error.empty()) { error=picker.error; picker.error.clear(); }
@@ -332,7 +374,7 @@ int main(int argc,char** argv) {
       task.thread.join(); busy=false;
       std::lock_guard lock(task.mutex);
       if(task.success) {
-        try { update_config(config,{{"game_data_root",toml_string(utf8(task.folder))}}); game=task.folder; hash=task.hash; verified=true; leftovers=unfinished_imports(home,game); visuals->load_art(game,user,manifest); }
+        try { update_config(config,{{"game_data_root",toml_string(utf8(task.folder))}}); game=task.folder; hash=task.hash; verified=true; leftovers=unfinished_imports(ghome,game); visuals->load_art(game,user,manifest); }
         catch(const std::exception& e) { error=e.what(); }
       } else error=task.status;
       focus_page=true;
@@ -347,7 +389,7 @@ int main(int argc,char** argv) {
     }
     if(auto code=process.poll()) {
       if(*code!=0 || process.elapsed()<10) {
-        char text[96]; std::snprintf(text,sizeof(text),"Game %s (exit code 0x%08X)",*code!=0?"crashed":"exited during startup",static_cast<unsigned>(*code)); error=text; crash=newest_log_tail(home,log_since);
+        char text[96]; std::snprintf(text,sizeof(text),"Game %s (exit code 0x%08X)",*code!=0?"crashed":"exited during startup",static_cast<unsigned>(*code)); error=text; crash=newest_log_tail(ghome,log_since,gp->log_prefix);
       }
       focus_page=true;
     }
@@ -379,11 +421,25 @@ int main(int argc,char** argv) {
     visuals->backdrop(size);
     ImGui::SetNextWindowPos({0,0}); ImGui::SetNextWindowSize(size);
     ImGui::Begin("Launcher",nullptr,ImGuiWindowFlags_NoDecoration|ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoSavedSettings|ImGuiWindowFlags_NoBackground);
-    visuals->logo(ui_scale);
+    visuals->logo(ui_scale,gp->title);
     ImGui::SameLine();
     ImGui::SetCursorPosY(ImGui::GetCursorPosY()+std::max(0.f,(ImGui::GetItemRectSize().y-ImGui::GetTextLineHeight())*.5f));
     ImGui::TextDisabled("RECOMP %s",LAUNCHER_VERSION);
+    // Game selector: one button per game, disabled while anything runs.
+    {
+      bool pending_pick; { std::lock_guard lock(picker.mutex); pending_pick=picker.pending; }
+      ImGui::BeginDisabled(busy||pending_pick||process.running()||online.busy||dialog!=Dialog::none);
+      for(int i=0;i<kGameCount;++i) {
+        ImGui::SameLine(0,i?6*ui_scale:24*ui_scale);
+        bool active=i==game_sel;
+        if(active) ImGui::PushStyleColor(ImGuiCol_Button,{.16f,.43f,.32f,1});
+        if(ImGui::Button(kGames[i].title)&&!active) switch_game(i);
+        if(active) ImGui::PopStyleColor();
+      }
+      ImGui::EndDisabled();
+    }
     for(int i=0;i<tab_count;++i) {
+      if(i==tab_ap&&!gp->archipelago) continue;
       if(i) ImGui::SameLine(0,6*ui_scale);
       bool active=i==tab;
       if(active) ImGui::PushStyleColor(ImGuiCol_Button,{.16f,.43f,.32f,1});
@@ -419,16 +475,16 @@ int main(int argc,char** argv) {
         if(!leftovers.empty()) {
           ImGui::TextWrapped("%zu unfinished import(s) can be removed.",leftovers.size());
           if(ImGui::Button("Delete unfinished import")) {
-            leftovers=unfinished_imports(home,game);
+            leftovers=unfinished_imports(ghome,game);
             for(const auto& dir:leftovers) { std::error_code ec; fs::remove_all(dir,ec); if(ec) { error="Cannot delete "+utf8(dir)+": "+ec.message(); break; } }
-            leftovers=unfinished_imports(home,game);
+            leftovers=unfinished_imports(ghome,game);
           }
         }
         ImGui::EndDisabled();
       }
       // A separate focusable card, reachable by D-pad/keyboard as well as mouse.
-      ImGui::SetCursorPos({std::max(0.f,ImGui::GetContentRegionAvail().x-330*ui_scale),std::max(0.f,ImGui::GetWindowHeight()-90*ui_scale)});
-      ImGui::BeginDisabled(blocked); if(ImGui::Button("Add Crackdown to Steam",{310*ui_scale,48*ui_scale})) { try { report=add_to_steam(home/"CrackdownLauncher.exe"); error.clear(); } catch(const std::exception& e) { error=e.what(); } } ImGui::EndDisabled();
+      if(gp->steam) ImGui::SetCursorPos({std::max(0.f,ImGui::GetContentRegionAvail().x-330*ui_scale),std::max(0.f,ImGui::GetWindowHeight()-90*ui_scale)});
+      ImGui::BeginDisabled(blocked); if(gp->steam&&ImGui::Button("Add Crackdown to Steam",{310*ui_scale,48*ui_scale})) { try { report=add_to_steam(home/"CrackdownLauncher.exe"); error.clear(); } catch(const std::exception& e) { error=e.what(); } } ImGui::EndDisabled();
     }
     if(tab>=1&&tab<=4) {
       ImGui::BeginDisabled(blocked); if(tab!=4) focus_first(!blocked);
@@ -443,7 +499,8 @@ int main(int argc,char** argv) {
       if(tab==2) {
         int resolution=scale>=1&&scale<=3?scale-1:0;
         if(ImGui::Combo("Internal resolution",&resolution,"720p (default)\0" "1440p\0" "4K (2160p, needs a fast GPU)\0")) { scale=resolution+1; changes["resolution_scale"]=scale==1?std::nullopt:std::optional<std::string>(std::to_string(scale)); changes["draw_resolution_scale_x"]=std::nullopt; changes["draw_resolution_scale_y"]=std::nullopt; }
-        if(ImGui::Combo("Aspect ratio",&aspect,"16:9 (default)\0" "16:10\0" "21:9 (ultrawide)\0" "32:9 (super ultrawide)\0" "4:3\0")) { const char* values[]={nullptr,"16:10","21:9","32:9","4:3"}; changes["aspect_ratio"]=values[aspect]?std::optional<std::string>(toml_string(values[aspect])):std::nullopt; changes["video_mode_width"]=std::nullopt; changes["video_mode_height"]=std::nullopt; }
+        // Aspect ratio and camera speed are Crackdown 1 hooks (hooks_aspect.cpp, hooks_camera.cpp); not ported to Crackdown 2 yet.
+        if(game_sel==0&&ImGui::Combo("Aspect ratio",&aspect,"16:9 (default)\0" "16:10\0" "21:9 (ultrawide)\0" "32:9 (super ultrawide)\0" "4:3\0")) { const char* values[]={nullptr,"16:10","21:9","32:9","4:3"}; changes["aspect_ratio"]=values[aspect]?std::optional<std::string>(toml_string(values[aspect])):std::nullopt; changes["video_mode_width"]=std::nullopt; changes["video_mode_height"]=std::nullopt; }
         if(ImGui::Combo("Anti-aliasing",&aa,"Off (default)\0FXAA\0FXAA (extreme)\0")) changes["swap_post_effect"]=aa==0?std::nullopt:std::optional<std::string>(toml_string(aa==1?"fxaa":"fxaa_extreme"));
         if(ImGui::Combo("Texture filtering",&aniso,"Game's own\0Anisotropic 2x\0Anisotropic 4x (default)\0Anisotropic 8x\0Anisotropic 16x\0")) { const char* values[]={"-1","2",nullptr,"4","5"}; changes["anisotropic_override"]=values[aniso]?std::optional<std::string>(values[aniso]):std::nullopt; }
 #if LAUNCHER_FIDELITYFX
@@ -451,7 +508,12 @@ int main(int argc,char** argv) {
 #else
         ImGui::TextDisabled("Upscale filter: Bilinear (this build)");
 #endif
-        if(ImGui::Combo("Frame rate",&rate,"60 fps (default)\0" "30 fps (stock)\0")) { changes["vsync"]=rate?std::optional<std::string>("true"):std::nullopt; changes["fps_cap"]=std::nullopt; }
+        if(game_sel==0) {
+          if(ImGui::Combo("Frame rate",&rate,"60 fps (default)\0" "30 fps (stock)\0")) { changes["vsync"]=rate?std::optional<std::string>("true"):std::nullopt; changes["fps_cap"]=std::nullopt; }
+        } else {
+          // Crackdown 2: 30 fps by default (host limiter); 60 needs its measured game clock.
+          if(ImGui::Combo("Frame rate",&rate,"30 fps (default)\0" "60 fps (experimental)\0")) { changes["fps_cap"]=rate?std::optional<std::string>("60"):std::nullopt; changes["sim_game_clock"]=rate?std::optional<std::string>("true"):std::nullopt; changes["vsync"]=std::nullopt; }
+        }
         ImGui::TextDisabled("In game: F3 shows the frame rate, F11 switches between fullscreen and a window.");
       }
       if(tab==3) {
@@ -463,10 +525,10 @@ int main(int argc,char** argv) {
         if(ImGui::Checkbox("Close launcher after Play",&close_on_play)) {
           try { update_config(preferences,{{"close_on_play",close_on_play?std::optional<std::string>("true"):std::nullopt}}); } catch(const std::exception& e) { error=e.what(); }
         }
-        ImGui::SeparatorText("Co-op (System Link, experimental)");
-        bool coop_edit=ImGui::Checkbox("Play co-op with another PC",&coop.enabled);
+        if(gp->coop) ImGui::SeparatorText("Co-op (System Link, experimental)");
+        bool coop_edit=gp->coop&&ImGui::Checkbox("Play co-op with another PC",&coop.enabled);
         if(coop_edit&&coop.enabled&&!coop_own[0]&&!coop_addresses.empty()) std::snprintf(coop_own,sizeof(coop_own),"%s",coop_addresses.front().c_str());
-        if(coop.enabled) {
+        if(gp->coop&&coop.enabled) {
           int role=coop.join?1:0;
           if(ImGui::Combo("Role",&role,"Player 1 (hosts)\0Player 2 (joins)\0")) { coop.join=role==1; coop_edit=true; }
           ImGui::SetNextItemWidth(280*ui_scale); coop_edit|=ImGui::InputTextWithHint("Your address",coop_addresses.empty()?"e.g. 192.168.1.20":coop_addresses.front().c_str(),coop_own,sizeof(coop_own));
@@ -479,16 +541,16 @@ int main(int argc,char** argv) {
           coop.own_address=coop_own; coop.partner_address=coop_partner;
           try { for(auto& [key,v]:coop_changes(coop)) changes[key]=v; coop_error.clear(); } catch(const std::exception& e) { coop_error=e.what(); }
         }
-        if(coop.enabled&&!coop_error.empty()) ImGui::TextColored({1.f,.45f,.4f,1.f},"%s",coop_error.c_str());
+        if(gp->coop&&coop.enabled&&!coop_error.empty()) ImGui::TextColored({1.f,.45f,.4f,1.f},"%s",coop_error.c_str());
       }
       if(tab==4) {
         ImGui::Text("Input backend: %s",input_backend.c_str());
         focus_first(!blocked);
-        if(ImGui::SliderFloat("Camera turn speed",&camera_speed,0.25f,4.0f,"%.2fx")) {
+        if(game_sel==0&&ImGui::SliderFloat("Camera turn speed",&camera_speed,0.25f,4.0f,"%.2fx")) {
           char text[16]; std::snprintf(text,sizeof(text),"%.2f",camera_speed);
           changes["camera_sensitivity"]=std::abs(camera_speed-1.0f)<0.005f?std::nullopt:std::optional<std::string>(text);
         }
-        ImGui::TextWrapped("How fast the right stick (or the mouse) turns the camera. 1.00x is the original speed.");
+        if(game_sel==0) ImGui::TextWrapped("How fast the right stick (or the mouse) turns the camera. 1.00x is the original speed.");
         if(ImGui::Checkbox("Mouse / keyboard mode",&mnk)) changes["mnk_mode"]=mnk?std::optional<std::string>("true"):std::nullopt;
         if(mnk) {
           if(ImGui::SliderFloat("Mouse sensitivity",&mouse_sens,0.1f,5.0f,"%.2f")) {
@@ -519,13 +581,13 @@ int main(int argc,char** argv) {
       if(ImGui::Checkbox("Keep saves with the game (portable)",&portable)) {
         // Copies, never moves: the other location keeps its saves, and switching back finds them.
         const bool want=portable; bool ok=true;
-        auto documents=fs::absolute(default_user_folder()).lexically_normal(), local=home/"userdata";
+        auto documents=fs::absolute(default_user_folder(gp->user_folder)).lexically_normal(), local=ghome/"userdata";
         try {
           if(want) {
             if(!fs::exists(local)) {
               // The first copy goes to a staging folder that becomes userdata only once complete, so a
               // failed copy never passes for a finished one on the next try.
-              auto staging=home/"userdata.partial";
+              auto staging=ghome/"userdata.partial";
               fs::remove_all(staging); fs::create_directories(staging);
               if(fs::is_directory(documents)) for(const auto& item:fs::directory_iterator(documents)) {
                 auto name=item.path().filename();
@@ -534,27 +596,27 @@ int main(int argc,char** argv) {
               }
               fs::rename(staging,local);
             }
-            std::ofstream marker(home/"portable.txt",std::ios::binary|std::ios::trunc);
-            marker<<"Saves are in userdata\\ next to this file. Delete this file to use Documents\\crackdown again.\n";
+            std::ofstream marker(ghome/"portable.txt",std::ios::binary|std::ios::trunc);
+            marker<<"Saves are in userdata\\ next to this file. Delete this file to use Documents\\"<<gp->user_folder<<" again.\n";
             marker.close(); if(!marker) throw std::runtime_error("Cannot write portable.txt next to the launcher");
-          } else fs::remove(home/"portable.txt");
+          } else fs::remove(ghome/"portable.txt");
         } catch(const std::exception& e) { ok=false; error=e.what(); }
         // Mode, save root, profile and its Archipelago settings all follow the marker on disk, so
         // they stay consistent whichever step failed; the profile state is reloaded from the new root
         // even when a profile of the same name exists in both.
-        std::error_code marker_ec; portable=fs::is_regular_file(home/"portable.txt",marker_ec);
+        std::error_code marker_ec; portable=fs::is_regular_file(ghome/"portable.txt",marker_ec);
         user=fs::absolute(portable?local:documents).lexically_normal();
         try { profiles=list_profiles(user); } catch(const std::exception& e) { profiles.clear(); ok=false; error=e.what(); }
         if(std::find(profiles.begin(),profiles.end(),profile)==profiles.end()) {
           profile.clear();
-          try { update_config(preferences,{{"profile",std::nullopt}}); } catch(const std::exception& e) { ok=false; error=e.what(); }
+          try { update_config(preferences,{{gp->profile_key,std::nullopt}}); } catch(const std::exception& e) { ok=false; error=e.what(); }
         }
         load_ap();
         if(ok) error.clear();
       }
       ImGui::EndDisabled(); ImGui::TextWrapped("%s",portable?"Saves are in userdata next to the launcher. Turning this off goes back to Documents\\crackdown; nothing is deleted.":"A new profile starts with no save: choose New Game. Profiles share the shader cache. Portable mode copies your saves next to the launcher and uses them from there.");
     }
-    if(tab==tab_ap) {
+    if(tab==tab_ap&&gp->archipelago) {
       bool named=!user.empty()&&!profile.empty();
       ImGui::BeginDisabled(blocked||!named); focus_first(!blocked&&named);
       bool edited=ImGui::Checkbox("Connect to Archipelago when this profile plays",&ap.enabled);
@@ -593,7 +655,7 @@ int main(int argc,char** argv) {
       ImGui::TextDisabled("The password is stored only in this profile's folder and is not included in system info.");
     }
     if(tab==tab_about) {
-      ImGui::Text("Crackdown Recomp / Launcher %s",LAUNCHER_VERSION);
+      ImGui::Text("Crackdown Recomp / Launcher %s (selected: %s)",LAUNCHER_VERSION,gp->title);
       ImGui::TextWrapped("Update source: %s (preview configuration)",release_repository);
       ImGui::TextWrapped("Standalone front end using SDL3, Dear ImGui, toml++ and stb_image. Barlow fonts: SIL OFL 1.1. Controller prompts: CC0. Game art comes from your verified files.");
       focus_first(); if(ImGui::Button("Open licenses")) { try { show_folder(home/"LICENSES"); } catch(const std::exception& e) { error=e.what(); } }
@@ -619,7 +681,7 @@ int main(int argc,char** argv) {
     if(!report.empty()&&tab==0) ImGui::TextWrapped("%s",report.c_str());
     if(!crash.empty()) { ImGui::BeginChild("Startup log",{0,130*ui_scale},true); ImGui::TextUnformatted(crash.c_str()); ImGui::EndChild(); }
     ImGui::EndChild();
-    ImGui::Separator(); ImGui::Text("GAME  %s     PROFILE  %s     ARCHIPELAGO  %s     VERSION  %s",busy?"Checking...":verified?"Ready to play":"Not installed",profile.empty()?"Default":profile.c_str(),!profile.empty()&&ap.enabled?"On":"Off",LAUNCHER_VERSION);
+    ImGui::Separator(); ImGui::Text(gp->archipelago?"GAME  %s     PROFILE  %s     ARCHIPELAGO  %s     VERSION  %s":"GAME  %s     PROFILE  %s%.0s     VERSION  %s",busy?"Checking...":verified?"Ready to play":"Not installed",profile.empty()?"Default":profile.c_str(),!profile.empty()&&ap.enabled?"On":"Off",LAUNCHER_VERSION);
     visuals->hints(device,ui_scale);
     ImGui::End();
     if(ask_updates) ImGui::OpenPopup("Update preferences");
@@ -643,9 +705,9 @@ int main(int argc,char** argv) {
       auto close_dialog=[&] { ImGui::CloseCurrentPopup(); dialog=Dialog::none; focus_page=true; };
       auto modal_focus=[&] { if(dialog_focus) { ImGui::SetKeyboardFocusHere(); dialog_focus=false; } };
       if(dialog==Dialog::install) {
-        ImGui::TextUnformatted("INSTALL GAME"); ImGui::TextWrapped("Select your supported World multi-language disc image or an extracted game folder. Your source files are kept in place.");
+        ImGui::TextUnformatted("INSTALL GAME"); ImGui::TextWrapped("%s Your source files are kept in place.",gp->disc_hint);
         modal_focus();
-        auto browser=[&](bool folder) { folder_browser=folder; browse=fs::is_directory(game)?game:home; refresh_browser(); dialog=Dialog::browser; dialog_focus=true; };
+        auto browser=[&](bool folder) { folder_browser=folder; browse=fs::is_directory(game)?game:ghome; refresh_browser(); dialog=Dialog::browser; dialog_focus=true; };
         if(ImGui::Button("Browse ISO")) browser(false);
         ImGui::SameLine(); if(ImGui::Button("Browse extracted folder")) browser(true);
         if(ImGui::Button("Native ISO picker (keyboard / mouse)")) {
