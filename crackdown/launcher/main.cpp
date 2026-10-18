@@ -193,7 +193,7 @@ int main(int argc,char** argv) {
           install_image(path,home,manifest,task.cancel,phase("Extracting game files..."),phase("Checking every extracted file..."));
           folder=home/"game"; check=Check::quick;
         }
-        auto h=verify_folder(folder,manifest,&task.cancel,check,phase(check==Check::full?"Checking every game file (one time)...":"Verifying game files..."));
+        auto h=verify_folder_cached(folder,manifest,home/"verified-files.txt",&task.cancel,check,phase(check==Check::full?"Checking every game file (one time)...":"Verifying game files..."));
         std::lock_guard lock(task.mutex); task.folder=fs::absolute(folder); task.hash=h; task.status="Game files verified"; task.success=true;
       } catch(const std::exception& e) { task.message(e.what()); }
       task.done=true;
@@ -262,7 +262,7 @@ int main(int argc,char** argv) {
     try {
       for(const char* key:kApConfigKeys) changes[key]=std::nullopt;
       update_config(config,changes); changes.clear();
-      hash=verify_folder(game,manifest); log_since=fs::file_time_type::clock::now();
+      hash=verify_folder_cached(game,manifest,home/"verified-files.txt"); log_since=fs::file_time_type::clock::now();
       auto args=profile_args(user,profile); args.insert(args.begin(),"--game_data_root="+utf8(game));
       // The game reads the password from the profile's connection.toml itself.
       if(!profile.empty()) save_ap();
