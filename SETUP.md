@@ -56,6 +56,11 @@ The files are not code-signed, so Windows may warn you:
   (a `portable.txt` file marks it). Turning it off goes back to `Documents\crackdown` without
   copying newer portable saves back; nothing is deleted either way.
 - The boot logo videos are skipped by default (launcher setting).
+- **Graphics** (launcher → GRAPHICS, or the PC Settings page in the game's menus): internal
+  resolution up to 4K, FXAA, texture filtering, and **Aspect ratio** (16:9, 16:10, 21:9,
+  32:9, 4:3). Wider ratios show more of the scene instead of stretching it.
+- **Camera turn speed:** launcher → CONTROLS slider (0.25x to 4x, also scales mouse look).
+- **Keys:** F3 shows an fps counter, F11 switches between fullscreen and a window.
 - **Language:** launcher → GAMEPLAY → **Language** (or `user_language` in `crackdown.toml`:
   1 English, 2 Japanese, 3 German, 4 French, 5 Spanish, 6 Italian, 7 Korean,
   8 Traditional Chinese, 9 Portuguese, 10 Simplified Chinese; the game ignores other values
