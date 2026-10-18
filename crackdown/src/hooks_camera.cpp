@@ -19,8 +19,8 @@
 // original values to scale from. sub_82503F20 runs once per camera update, so
 // it is the tick.
 //
-// Disc XEX addresses. The title-update build keeps per-version addresses in
-// game_addresses.h on its own branch; map these there when this lands on it.
+// Addresses are given for the disc XEX and Title Update #6 (game_addresses.h;
+// mapping evidence in docs/plan-title-update.md).
 
 #include "generated/default/crackdown_init.h"
 #include "game_addresses.h"
