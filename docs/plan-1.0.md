@@ -105,3 +105,23 @@ FXAA) and Display (Fullscreen / Windowed). Hooks touched: ctor 0x8266B928 and no
    log line `pc settings: initialized screen 26 (selections ...)` and the highlighted buttons match
    the file. Set `aspect_ratio = "4:3"` in the file: that row then shows nothing selected.
 5. Restart with a couple of changed settings and check they took effect (F3 resolution, aspect).
+
+## PC task 5: camera turn speed (stick sensitivity)
+
+Austin finds the right-stick camera very slow at every frame rate, with no way to change it. Our input
+path passes the stick through unscaled (XInput and SDL drivers copy the raw axis; the only deadzone in
+the SDK is the idle check in `state_merge.cpp`), so full deflection already reaches the game. A
+sensitivity option therefore has to scale the game's own turn rate, not the stick value.
+
+1. Find where the right stick turns the on-foot camera: from the XamInputGetState callers, follow
+   `sThumbRX`/`sThumbRY` (XINPUT_STATE +0x0C/+0x0E) to their float conversion and into the camera
+   update, and find the yaw/pitch rate (likely an .rdata float or a tuning field multiplied with the
+   stick value and dt). Note whether driving and aiming use the same rate or their own.
+2. Prove it: temporarily double the rate (patch the constant or hook the reader), replay a held right
+   stick (`--input_replay` recording, record one if none exists), and measure how far the camera turns
+   per second at 1x and 2x, at 30 and 60 fps. Screenshots or a camera-heading log line are enough.
+3. Add `crackdown/src/hooks_camera.cpp` with a `camera_sensitivity` cvar (double, default 1.0,
+   0.25-4.0) that scales the rate for on-foot camera (and aiming/driving if they share it), with
+   disc addresses in `game_addresses.h` (TU column left for the DLC thread). Record the addresses and
+   evidence in `docs/re-notes.md`. Commit and push to this branch; the launcher slider and the PC
+   Settings row are added on top of it.
