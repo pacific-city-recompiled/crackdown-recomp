@@ -94,8 +94,8 @@ Full key map: [SETUP.md → Mouse and keyboard](SETUP.md#mouse-and-keyboard).
 - **1.1:** DLC support with the title update (the Four-Play Pack, and the Free-For-All Pack
   with Keys to the City and Street Racing), 120 and 144 fps, and an achievements check.
 - **Crackdown 2:** support in the same launcher.
-- Later: more in-game quality of life, and a native Linux build is being looked into
-  ([#5](https://github.com/Unowa001/crackdown-recomp/issues/5)).
+- Native Linux: requested and tracked in
+  [#5](https://github.com/Unowa001/crackdown-recomp/issues/5), no plan or date yet. Proton works today.
 
 ## For developers
 
