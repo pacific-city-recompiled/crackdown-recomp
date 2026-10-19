@@ -53,7 +53,7 @@ The repository contains no game data. You need your own copy of Crackdown.
 ## Screenshots
 
 <p align="center">
-  <img src="docs/images/gameplay.gif" alt="Rooftop drop over Pacific City at 60 fps" width="100%">
+  <img src="docs/images/gameplay.gif" alt="Rooftop drop over Pacific City at 60 fps" width="720">
 </p>
 
 <table>
