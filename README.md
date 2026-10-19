@@ -15,7 +15,9 @@
 **[Setup guide](SETUP.md)** ·
 **[Report a problem](SETUP.md#reporting-a-problem)**
 
-<!-- HERO -->
+<br>
+
+<img src="docs/images/hero.jpg" alt="An agent drops from the rooftops toward the Pacific City skyline" width="100%">
 
 </div>
 
@@ -48,7 +50,42 @@ The repository contains no game data. You need your own copy of Crackdown.
 | **Save profiles and portable mode** | Separate save profiles, or keep saves next to the game on a USB drive. |
 | **Quality of life** | F3 fps counter, F11 fullscreen/window toggle, skippable boot logos, one-click updates that keep your saves and settings. |
 
-<!-- GALLERY -->
+## Screenshots
+
+<p align="center">
+  <img src="docs/images/gameplay.gif" alt="Rooftop drop over Pacific City at 60 fps" width="100%">
+</p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/driving.jpg" alt="An Agency car launching off the rocks next to Fun Land"></td>
+    <td width="50%"><img src="docs/images/street.jpg" alt="An agent on a downtown street with traffic"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Driving at 60 fps</sub></td>
+    <td align="center"><sub>Pacific City streets</sub></td>
+  </tr>
+</table>
+
+**Ultrawide without stretching.** The same moment at 21:9: the extra width shows more of the city.
+
+<img src="docs/images/ultrawide.jpg" alt="The same rooftop drop at 21:9, showing more city on both sides" width="100%">
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/launcher-home.png" alt="The launcher's home screen"></td>
+    <td width="50%"><img src="docs/images/launcher-graphics.png" alt="The launcher's GRAPHICS tab"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>The launcher installs, verifies and updates the game</sub></td>
+    <td align="center"><sub>GRAPHICS tab: resolution, aspect ratio, FXAA, texture filtering</sub></td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="docs/images/pc-settings.jpg" alt="The in-game PC Settings page" width="70%"><br>
+  <sub>The new PC Settings page in the game's own menus</sub>
+</p>
 
 ## Get started
 
