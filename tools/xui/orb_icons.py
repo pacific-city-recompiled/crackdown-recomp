@@ -24,9 +24,11 @@ ORBS = {
     'hidden': (0x40, 0xa8, 0xff),
 }
 ICON = 19.2   # native map icon scene size
-DOT = 12.0    # drawn orb size inside it (no SizeMode: the native icon images
-              # set none and are stretched from 24 px art to their box)
-PIXELS = 32
+DOT = 12.0    # drawn orb size inside it
+# An XuiImage without SizeMode draws its PNG at pixel size from the box's
+# top-left (a 32 px orb in a 12-unit box showed only its top-left quarter,
+# PC run 2026-10-20), so the art is exactly DOT pixels.
+PIXELS = int(DOT)
 
 
 def png(rgb, size=PIXELS):
