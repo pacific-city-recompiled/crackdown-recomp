@@ -11,7 +11,7 @@
 [![License](https://img.shields.io/badge/license-BSD--3--Clause-lightgrey)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4)](SETUP.md#what-you-need)
 
-**[Download 1.0](https://github.com/Unowa001/crackdown-recomp/releases/latest)** ·
+**[Download 1.1](https://github.com/Unowa001/crackdown-recomp/releases/latest)** ·
 **[Setup guide](SETUP.md)** ·
 **[Report a problem](SETUP.md#reporting-a-problem)**
 
@@ -22,9 +22,10 @@
 </div>
 
 > [!IMPORTANT]
-> **Crackdown 2 is coming to the same launcher.** Support for Crackdown 2 is in development
-> and will be added to this launcher in a future update, so one install will play both games.
-> Watch the repository (Watch → Custom → Releases) to hear when it lands.
+> **Crackdown 2 is in the launcher (beta).** Since 1.1 one install plays both games: pick
+> CRACKDOWN 2 in the header, download its runtime from
+> [Crackdown-2-Recomp](https://github.com/Unowa001/Crackdown-2-Recomp), then install your disc, its
+> title update and any DLC. See [SETUP.md](SETUP.md#crackdown-2).
 
 ## About
 
@@ -89,7 +90,7 @@ The repository contains no game data. You need your own copy of Crackdown.
 
 ## Get started
 
-1. **Download** `CrackdownRecomp-1.0.0.zip` from the
+1. **Download** `CrackdownRecomp-1.1.0.zip` from the
    [latest release](https://github.com/Unowa001/crackdown-recomp/releases/latest) and extract
    the whole ZIP into a folder you can write to (for example `Documents\CrackdownRecomp`).
 2. **Run** `CrackdownLauncher.exe` and choose **Install game**. Select your Crackdown ISO
@@ -128,9 +129,8 @@ Full key map: [SETUP.md → Mouse and keyboard](SETUP.md#mouse-and-keyboard).
 
 ## Roadmap
 
-- **1.1:** DLC support with the title update (the Four-Play Pack, and the Free-For-All Pack
+- **1.2:** DLC support with the title update (the Four-Play Pack, and the Free-For-All Pack
   with Keys to the City and Street Racing), 120 and 144 fps, and an achievements check.
-- **Crackdown 2:** support in the same launcher.
 - Native Linux: requested and tracked in
   [#5](https://github.com/Unowa001/crackdown-recomp/issues/5), no plan or date yet. Proton works today.
 

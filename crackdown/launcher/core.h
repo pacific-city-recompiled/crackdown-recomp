@@ -48,8 +48,11 @@ class Image {
 };
 // Owns only a newly-created staging directory; existing game folders are never deleted.
 // The staging copy gets a full hash check before it becomes game/.
+// home is the game's own package folder (the package root for Crackdown 1, cd2/ for Crackdown 2).
 void install_image(const fs::path& iso, const fs::path& home, const std::vector<Entry>& manifest,
-                   const std::atomic_bool& cancel, Progress extracted, Progress verified = {});
+                   const std::atomic_bool& cancel, Progress extracted, Progress verified = {},
+                   const std::string& expected_xex = supported_xex,
+                   const std::string& manifest_name = "game-manifest.txt");
 // Only marked, inactive staging folders; selected game data is always protected.
 void mark_import(const fs::path& folder);
 std::vector<fs::path> unfinished_imports(const fs::path& home, const fs::path& selected = {});

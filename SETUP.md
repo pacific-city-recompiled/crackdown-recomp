@@ -96,6 +96,21 @@ use **Check for updates** at any time. Updates download from this repository's r
 are verified (SHA256) and replace only the program files. Your game files, saves and
 settings are kept, and a failed update rolls back.
 
+## Crackdown 2
+
+The launcher also runs [Crackdown 2 Recomp](https://github.com/Unowa001/Crackdown-2-Recomp) (beta).
+Pick **CRACKDOWN 2** in the header. It lives in the `cd2` folder next to the launcher, with its own
+settings, saves (`Documents\crackdown2`) and logs:
+
+1. **Download runtime** installs the latest Crackdown 2 release from its repository (pre-releases
+   included). **Check for updates** on that tab updates it later; Crackdown 1 keeps updating from
+   this repository.
+2. **Install game** takes your Crackdown 2 World multi-language disc image or extracted folder.
+3. **Install title update** takes the title update 0.0.5.1 package (`TU_16L625S_...`, from a
+   console's `Content\0000000000000000\4D5308BC\000B0000`). Crackdown 2 needs it to run.
+4. **Install DLC** (optional) takes Toy Box, Deluge or Pre-Order Armor packages (from
+   `...\4D5308BC\00000002`, original file names). They are shared by every save profile.
+
 ## Reporting a problem
 
 In the launcher, use **Open logs folder** and **Copy system info**. Send:

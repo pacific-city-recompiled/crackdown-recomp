@@ -12,7 +12,7 @@ class Visuals {
   void load_art(const fs::path& game,const fs::path& user,const std::vector<Entry>& manifest);
   void clear_art();
   void backdrop(ImVec2 size);
-  void logo(float scale);
+  void logo(float scale, const char* fallback = "CRACKDOWN");
   void hints(const std::string& device,float scale);
   ImFont* heading=nullptr;
   ImFont* body=nullptr;
