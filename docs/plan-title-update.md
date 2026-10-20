@@ -106,3 +106,11 @@ Camera turn speed (1.0 PR #9, `hooks_camera.cpp`), mapped ahead of the re-sync:
 | Player camera updates reading +60/+64 inline | 0x824FAC28, 0x824F9518 | 0x8255D5C0, 0x8255BE08 (same two lfs reads each) |
 
 The block layout is the same in the update (+28/+32/+36/+40 read by identical code; +60/+64 the same reads).
+
+## Building crackdown_tu (2026-10-20)
+
+- Codegen input: `game-tu/` at the repo root (gitignored) with `Default.xex` (the disc's) and `Default.xexp`
+  (from Title Update #6: `python -I tools/re/stfs_extract.py <TU package> <dir>`). Hardlinks are fine.
+- Runtime: crackdown_tu.exe runs on the normal game folder. It reads the update from `title-update/` next to
+  the exe (`--update_data_root`, `--xex_patch=update:\default.xexp`, SDK patch 0028); the launcher's SAVES tab
+  installs it there. `tools/package-beta.ps1` builds and packages crackdown_tu.exe.

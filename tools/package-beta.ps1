@@ -79,6 +79,14 @@ if (-not $SkipBuild) {
         Invoke-Checked cmake @('--preset','win-amd64-release',"-DCMAKE_PREFIX_PATH=$sdk/out/install/win-amd64")
         Invoke-Checked cmake @('--build','--preset','win-amd64-release')
     } finally { Pop-Location }
+    # The title update build's codegen reads game-tu\Default.xex + Default.xexp (Title Update #6,
+    # see docs/plan-title-update.md); never shipped, only compiled from.
+    if (-not (Test-Path -LiteralPath (Join-Path $repo 'game-tu/Default.xexp'))) { throw 'game-tu\Default.xex + Default.xexp missing (needed to build crackdown_tu.exe)' }
+    Push-Location (Join-Path $repo 'crackdown_tu')
+    try {
+        Invoke-Checked cmake @('--preset','win-amd64-release',"-DCMAKE_PREFIX_PATH=$sdk/out/install/win-amd64","-DSDK_THIRDPARTY=$sdk/thirdparty")
+        Invoke-Checked cmake @('--build','--preset','win-amd64-release')
+    } finally { Pop-Location }
     $oldLauncherVS = $env:LAUNCHER_VS
     try {
         $env:LAUNCHER_VS = $vs
@@ -87,6 +95,8 @@ if (-not $SkipBuild) {
 }
 
 $gameBuild = Join-Path $repo 'crackdown/out/build/win-amd64-release'
+# Title update build (crackdown_tu.exe): same runtime DLLs; reads title-update\ that the user installs.
+$tuBuild = Join-Path $repo 'crackdown_tu/out/build/win-amd64-release'
 $launcherBuild = Join-Path $repo 'crackdown/launcher/out'
 $bin = Join-Path $sdk 'out/install/win-amd64/bin'
 $llvm = Join-Path $env:ProgramFiles 'LLVM/bin/llvm-readobj.exe'
@@ -101,6 +111,7 @@ New-Item -ItemType Directory -Path $stage | Out-Null
 foreach ($file in @(
     (Join-Path $launcherBuild 'CrackdownLauncher.exe'),
     (Join-Path $gameBuild 'crackdown.exe'),
+    (Join-Path $tuBuild 'crackdown_tu.exe'),
     (Join-Path $bin 'rexruntime.dll'),
     (Join-Path $bin 'rexgpu-xenos.dll'),
     (Join-Path $repo 'tools/game-manifest.txt'),
