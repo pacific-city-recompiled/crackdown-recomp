@@ -112,7 +112,8 @@ int main(int argc,char** argv) {
   fs::path preferences=home/"launcher.toml";
   int game_sel=0;
   try { game_sel=game_index(value<std::string>(read_config(preferences),"selected_game","cd1")); } catch(const std::exception&) {}
-  for(int i=1;i<argc;++i) { std::string a=argv[i]; if(a.starts_with("--game=")) game_sel=game_index(a.substr(7)); }
+  // --game=<id> or --game <id> (the Crackdown 2 apworld's client starts "CrackdownLauncher --game crackdown2 --connect <uri>").
+  for(int i=1;i<argc;++i) { std::string a=argv[i]; if(a.starts_with("--game=")) game_sel=game_index(a.substr(7)); else if(a=="--game"&&i+1<argc) game_sel=game_index(argv[++i]); }
   const GameProfile* gp=&kGames[game_sel];
   fs::path ghome=game_home(home,*gp), config=ghome/gp->config;
   Task task; Picker picker; GameProcess process; std::vector<Entry> manifest;
@@ -684,7 +685,9 @@ int main(int argc,char** argv) {
         for(const auto& pack:dlc_packs) ImGui::BulletText("%s",pack.title.c_str());
         if(ImGui::Button("Install DLC pack...")) { package_kind=2; show_dialog(Dialog::package); }
       }
-      ImGui::EndDisabled(); ImGui::TextWrapped("%s",portable?"Saves are in userdata next to the launcher. Turning this off goes back to Documents\\crackdown; nothing is deleted.":"A new profile starts with no save: choose New Game. Profiles share the shader cache. Portable mode copies your saves next to the launcher and uses them from there.");
+      ImGui::EndDisabled();
+      if(portable) ImGui::TextWrapped("Saves are in userdata next to the game. Turning this off goes back to Documents\\%s; nothing is deleted.",gp->user_folder);
+      else ImGui::TextWrapped("%s","A new profile starts with no save: choose New Game. Profiles share the shader cache. Portable mode copies your saves next to the launcher and uses them from there.");
     }
     if(tab==tab_ap&&gp->archipelago) {
       bool named=!user.empty()&&!profile.empty();
@@ -720,8 +723,9 @@ int main(int argc,char** argv) {
         ImGui::EndDisabled();
       }
       else if(!ap_bound.empty()) ImGui::TextWrapped("This profile is bound to %s. Use a new profile for a different seed.",ap_bound.c_str());
-      else ImGui::TextWrapped("Not bound to a seed yet. Press Play, then choose Campaign > Play Now (New Game) while connected: that binds this profile to the seed.");
-      ImGui::TextDisabled("Preview: the orbs around Pacific City Bank are checks, and Progressive Agility is the only item.");
+      else ImGui::TextWrapped(game_sel==0?"Not bound to a seed yet. Press Play, then choose Campaign > Play Now (New Game) while connected: that binds this profile to the seed."
+                                            :"Not bound to a seed yet. Press Play, then start a New Game while connected: that binds this profile's save to the seed.");
+      if(game_sel==0) ImGui::TextDisabled("Preview: the orbs around Pacific City Bank are checks, and Progressive Agility is the only item.");
       ImGui::TextDisabled("The password is stored only in this profile's folder and is not included in system info.");
     }
     if(tab==tab_about) {

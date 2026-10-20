@@ -37,13 +37,15 @@ inline constexpr GameProfile kGames[] = {
      "crackdown2_", "8959c449e382661d29b8ea479c685f506cd5bd3eca40b3d73a51cc10f281069f", "profile_cd2",
      "Select your Crackdown 2 World multi-language disc image or an extracted game folder. The title update "
      "(0.0.5.1) is installed next, from its package.",
-     false, false, true, false, &cd2_updates, 0x4D5308BC,
+     false, true, true, false, &cd2_updates, 0x4D5308BC,
      "a5e49fc1ff7f6f65e6f95a7b5c4b9392bb9e38674d1237ac0e2f0149d05929d7", true},
 };
 inline constexpr int kGameCount = int(sizeof(kGames) / sizeof(kGames[0]));
+// Accepts the profile id or the game's name as the Archipelago clients pass it (--game crackdown2).
 inline int game_index(const std::string& id) {
   for (int i = 0; i < kGameCount; ++i)
     if (id == kGames[i].id) return i;
+  if (id == "crackdown2") return 1;
   return 0;
 }
 inline fs::path game_home(const fs::path& package, const GameProfile& g) {

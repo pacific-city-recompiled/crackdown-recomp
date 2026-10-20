@@ -1,3 +1,4 @@
+#include "games.h"
 #include "v2.h"
 #include <algorithm>
 #include <chrono>
@@ -83,6 +84,8 @@ void staged(const fs::path& home) {
 }
 // Crackdown 2 updates from its own repository into cd2/, with its own package allowlist and no launcher restart.
 void cd2(const fs::path& home) {
+  require(game_index("cd2")==1&&game_index("crackdown2")==1&&game_index("cd1")==0&&game_index("other")==0,"game ids and Archipelago client names");
+  require(kGames[1].archipelago&&kGames[1].dlc&&!kGames[1].coop,"Crackdown 2 features");
   auto json=R"([{"tag_name":"v0.5.0-beta","prerelease":true,"assets":[{"name":"Crackdown2Recomp-beta0.5.0.zip","browser_download_url":"https://github.com/Unowa001/Crackdown-2-Recomp/releases/download/v0.5.0-beta/Crackdown2Recomp-beta0.5.0.zip"},{"name":"Crackdown2Recomp-beta0.5.0.zip.sha256","browser_download_url":"https://github.com/Unowa001/Crackdown-2-Recomp/releases/download/v0.5.0-beta/Crackdown2Recomp-beta0.5.0.zip.sha256"}]}])";
   auto r=parse_releases(json,cd2_updates); require(r.size()==1&&r[0].prerelease&&r[0].zip_url.ends_with("Crackdown2Recomp-beta0.5.0.zip"),"Crackdown 2 package asset");
   require(parse_releases(json)[0].zip_url.empty(),"Crackdown 1 ignores Crackdown 2 packages");
