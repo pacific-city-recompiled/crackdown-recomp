@@ -3,6 +3,7 @@
 *.zip
 *.xex
 game/
+game-tu/
 extracted/
 
 # Generated recomp output (reproducible from the user's own default.xex)
