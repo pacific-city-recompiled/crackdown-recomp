@@ -180,6 +180,40 @@ void WeaponTests() {
   Reject([&] { restored.Receive(b, 0, {{73412003, 910001, 2, 1}}); });
   Reject([&] { restored.WeaponTarget(b, 20, true); });
 }
+void GangTests() {
+  Fixture f;
+  for (int i = 0; i < 5; ++i) f.contract.skills.emplace(i, SkillProgression{f.contract.agility_item + i, 1, 5});
+  for (int id = 1; id <= 19; ++id) f.contract.weapons.emplace(id, WeaponProgression{920100 + id, id <= 3 || id == 18});
+  f.contract.filler_item = 921000;
+  f.contract.goal = "kingpins";
+  f.contract.kingpin_locations = f.contract.locations;
+  const auto& b = f.contract.binding;
+  {
+    SessionState ungated(f.root / "ungated.toml", f.contract);
+    Check(ungated.BossOpen(b, 3) && ungated.BossOpen(b, 20), "ungated slot held a boss back");
+  }
+  f.contract.gangs = {{922000, {0, 1, 2, 4, 5, 6, 3}}, {922001, {7, 8, 9, 10, 12, 13, 11}},
+                      {922002, {14, 15, 16, 18, 19, 20, 17}}};
+  SessionState s(f.path, f.contract);
+  Check(!s.BossOpen(b, 0), "boss open before the inventory is known");
+  s.Receive(b, 0, {});
+  Check(!s.BossOpen(b, 0) && !s.BossOpen(b, 3), "boss open without items");
+  s.Receive(b, 0, {{922000, 910001, 2, 1}, {922000, 910002, 2, 1}, {922001, 910001, 1, 1}});
+  Check(s.BossOpen(b, 0) && s.BossOpen(b, 1) && !s.BossOpen(b, 2) && !s.BossOpen(b, 3),
+        "Los Muertos order");
+  Check(s.BossOpen(b, 7) && !s.BossOpen(b, 8) && !s.BossOpen(b, 14), "gang items crossed gangs");
+  std::vector<NetworkItem> all(7, {922000, 910001, 2, 1});
+  s.Receive(b, 0, all);
+  Check(s.BossOpen(b, 6) && s.BossOpen(b, 3), "seventh item did not open the kingpin");
+  Check(SessionState::ReadContract(f.path) == f.contract, "gang contract not persisted");
+  SessionState restored(f.path, f.contract);
+  Check(restored.BossOpen(b, 3) && !restored.BossOpen(b, 17), "offline gang restore");
+  Reject([&] { restored.Receive(b, 0, {{922003, 910001, 2, 1}}); });
+  auto bad = f.contract; bad.gangs[1].order[0] = 0;
+  Reject([&] { SessionState wrong(f.root / "twice.toml", bad); });
+  bad = f.contract; bad.gangs[2].item = 921000;
+  Reject([&] { SessionState wrong(f.root / "filler.toml", bad); });
+}
 void GoalTests() {
   Fixture f;
   for (int i = 0; i < 5; ++i) f.contract.skills.emplace(i, SkillProgression{f.contract.agility_item + i, 1, 5});
@@ -340,6 +374,7 @@ void AcknowledgeTests() {
     else if (name == "skills") SkillTests();
     else if (name == "weapons") WeaponTests();
     else if (name == "goal") GoalTests();
+    else if (name == "gangs") GangTests();
     else throw std::runtime_error("unknown case");
     std::cout << name << " passed\n";
   } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

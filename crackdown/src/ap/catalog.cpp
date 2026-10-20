@@ -95,6 +95,21 @@ Catalog ParseCatalog(std::string_view text) {
     }
     Require(c.supplies.size() == 16 && c.bosses.size() == 21 && c.weapons.size() == 19,
         "Incomplete M2 catalog");
+    if (j.contains("gangs")) {
+      std::set<int> members;
+      for (const auto& g : j.at("gangs")) {
+        Catalog::Gang e{g.at("name").get<std::string>(),
+            {g.at("item").get<int64_t>(), g.at("order").get<std::vector<int>>()}};
+        const auto& order = e.progression.order;
+        Require(!e.name.empty() && order.size() >= 2 && item_ids.insert(e.progression.item).second,
+            "Invalid gang catalog");
+        for (size_t i = 0; i < order.size(); ++i)
+          Require(c.bosses.contains(order[i]) && members.insert(order[i]).second &&
+              c.bosses.at(order[i]).kingpin == (i + 1 == order.size()), "Invalid gang order");
+        c.gangs.push_back(std::move(e));
+      }
+      Require(c.gangs.size() == 3 && members.size() == 21, "Incomplete gang catalog");
+    }
     auto ids = c.Locations();
     Require(ids.size() == 855, "Duplicate M2 location ID");
     // Include the Agency entry in collision validation even though it has no check.
@@ -154,6 +169,11 @@ Contract ParseSlotContract(const Catalog& catalog, std::string_view text,
     Require(c.kingpin_locations == kingpins, "Slot kingpins mismatch");
     Require(locations == catalog.Locations(data.at("include_hidden_orbs").get<bool>()),
         "Slot locations mismatch");
+    // Absent in slots from apworlds before gated generals.
+    if (data.contains("gated_generals") && data.at("gated_generals").get<bool>()) {
+      Require(!catalog.gangs.empty(), "Slot gates generals but the catalog has no gangs");
+      for (const auto& g : catalog.gangs) c.gangs.push_back(g.progression);
+    }
   } else {
     for (auto id : locations) Require(catalog.orbs.contains(id), "Unknown slot location");
   }
@@ -177,8 +197,10 @@ void ValidateStoredContract(const Catalog& catalog, const Contract& c) {
   std::set<int64_t> kingpins;
   for (const auto& [id, w] : catalog.weapons) weapons.emplace(id, WeaponProgression{w.item, w.starting});
   for (const auto& [id, b] : catalog.bosses) if (b.kingpin) kingpins.insert(b.id);
-  Require(c.weapons == weapons && c.filler_item == catalog.filler_item && c.kingpin_locations == kingpins,
-      "Stored M2 items/kingpins differ from embedded catalog");
+  std::vector<GangProgression> gangs;
+  for (const auto& g : catalog.gangs) gangs.push_back(g.progression);
+  Require(c.weapons == weapons && c.filler_item == catalog.filler_item && c.kingpin_locations == kingpins &&
+      (c.gangs.empty() || c.gangs == gangs), "Stored M2 items/kingpins/gangs differ from embedded catalog");
   if (!weapons.empty()) {
     Require((c.goal == "kingpins" || c.goal == "max_skills") &&
         (c.locations == catalog.Locations() || c.locations == catalog.Locations(false)),

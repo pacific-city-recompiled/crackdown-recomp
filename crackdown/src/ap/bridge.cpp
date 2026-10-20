@@ -18,6 +18,10 @@
 // - 82543A28 / 82543BB0 award bonus / ordinary XP to SkillSet r3.
 // - 82543DB0 sets an absolute skill level: r3 SkillSet, r4 skill, r5 raw
 //   level, r6 = 1 (as console callback 825087A8 calls it).
+// - 823E9248 (boss spawn-state vtable +4, docs/re-discovery-randomizer.md) is
+//   the per-boss activation predicate; state +12 is the cBossInfo.
+// - 82642B98 constructs the supply-point weapon locker (factory 8268ED50). It
+//   lists only armory entries whose +9 flag is set when it is built.
 #include "generated/default/crackdown_init.h"
 
 #include <rex/cvar.h>
@@ -100,6 +104,9 @@ struct Bridge {
   std::set<int64_t> watch_dead;
   bool native_saving = false;
   std::set<int64_t> serialized_bosses, serialized_dead;
+  std::set<int> locker_carried;     // native weapon IDs carried at the last deposit
+  std::set<int> gate_logged;        // boss native IDs whose closed gate was logged
+  bool gangs_verified = false;
   bool watch_maximum_skills = false;
   uint64_t goal_generation = 0;
 
@@ -449,6 +456,8 @@ void HandlePacket(const NetEvent& e) {
           if (id == g.catalog->agility_item) piece = "Progressive Agility";
           for (const auto& [index, skill] : g.catalog->skills)
             if (id == skill.item) piece = std::string("Progressive ") + kSkillNames[index];
+          for (const auto& gang : g.catalog->gangs)
+            if (id == gang.progression.item) piece = "Progressive " + gang.name;
         }
         else if (type == "location_id" && g.catalog->orbs.contains(std::stoll(piece)))
           piece = g.catalog->orbs.at(std::stoll(piece)).name;
@@ -527,6 +536,32 @@ std::set<int64_t> NativeDead(uint8_t* base) {
   return dead;
 }
 
+// Every catalog gang's bosses share one native gang (cBossInfo +64), and no two
+// catalog gangs share one. Logs the native grouping once as evidence.
+bool VerifyGangs(uint8_t* base) {
+  const auto bosses = BossTable(base);
+  if (!bosses || g.catalog->gangs.size() != 3) return false;
+  std::map<uint32_t, std::vector<int>> native;
+  for (const auto& [id, boss] : *bosses) native[REX_LOAD_U32(boss + 64)].push_back(id);
+  if (!g.gangs_verified) {
+    std::string text;
+    for (const auto& [gang, ids] : native) {
+      text += fmt::format(" {:08X}:", gang);
+      for (int id : ids) text += fmt::format(" {}", id);
+    }
+    REXLOG_INFO("ap: native boss gangs{}", text);
+  }
+  std::set<uint32_t> seen;
+  for (const auto& gang : g.catalog->gangs) {
+    const uint32_t first = REX_LOAD_U32(bosses->at(gang.progression.order.front()) + 64);
+    if (!first || !seen.insert(first).second) return false;
+    for (int id : gang.progression.order)
+      if (REX_LOAD_U32(bosses->at(id) + 64) != first) return false;
+  }
+  g.gangs_verified = true;
+  return true;
+}
+
 bool NativeMaximumSkills(uint8_t* base) {
   const uint32_t skills = PrimarySkills(base);
   if (!skills) return false;
@@ -547,6 +582,7 @@ bool VerifyCatalog(uint8_t* base, std::string& error) {
   }
   if (!VerifySupplies(base)) { error = "supply table mismatch"; return false; }
   if (!g.catalog->bosses.empty() && !BossTable(base)) { error = "boss table mismatch"; return false; }
+  if (!g.session->contract().gangs.empty() && !VerifyGangs(base)) { error = "gang membership mismatch"; return false; }
   return true;
 }
 
@@ -818,6 +854,7 @@ bool HandleWeaponDeposit(PPCContext& ctx, uint8_t* base) {
   std::lock_guard lock(g_mutex);
   if (!SaveIsBound() || !g.halt.empty()) return true;
   if (Armory(base) != begin) { Halt("armory changed during deposit"); return true; }
+  g.locker_carried = pass.carried;
   for (int id : pass.carried) {
     const auto& w = g.catalog->weapons.at(id);
     REXLOG_INFO("ap: carried weapon deposited native_id={} caller=826429A0", id);
@@ -922,6 +959,8 @@ REX_HOOK_RAW(sub_824EEEE8) {
       g.watch_save = false;
       g.steady = false;
       g.steady_since = {};
+      g.locker_carried.clear();
+      g.gate_logged.clear();
     }
   }
   __imp__sub_824EEEE8(ctx, base);
@@ -982,6 +1021,47 @@ REX_HOOK_RAW(sub_824EF1E0) {
     }
   }
   __imp__sub_824EF1E0(ctx, base);
+}
+
+REX_HOOK_RAW(sub_823E9248) {
+  const uint32_t state = ctx.r3.u32;
+  __imp__sub_823E9248(ctx, base); // dead, mode, proximity and mission rules stay native
+  if (!(ctx.r3.u32 & 0xFF)) return;
+  std::lock_guard lock(g_mutex);
+  // Closed during a load transition too: a bound save must not spawn a locked
+  // boss before Decide; a foreign save reopens on the next evaluation.
+  if (!g.enabled || !g.session || g.mode == Mode::foreign || !g.halt.empty() ||
+      g.session->contract().gangs.empty()) return;
+  const uint32_t boss = REX_LOAD_U32(state + 12);
+  if (!boss || REX_LOAD_U32(boss) != 0x820A513C) return;
+  const int id = static_cast<int>(REX_LOAD_U32(boss + 32));
+  if (g.session->BossOpen(ActiveBinding(), id)) return;
+  ctx.r3.u64 = 0;
+  if (g.gate_logged.insert(id).second)
+    REXLOG_INFO("ap: boss native_id={} held back until its gang item arrives", id);
+}
+
+REX_HOOK_RAW(sub_82642B98) {
+  // A deposited weapon stays locked until its AP item arrives, but the locker
+  // assumes every carried weapon is listed: it would highlight another entry
+  // and never equip it. List carried weapons for this build only.
+  uint32_t begin = 0;
+  std::vector<uint32_t> opened;
+  {
+    std::lock_guard lock(g_mutex);
+    if (g.enabled && SaveIsBound() && g.halt.empty() && !g.catalog->weapons.empty() &&
+        (begin = Armory(base)))
+      for (int id : g.locker_carried) {
+        const uint32_t flag = begin + 112 * g.catalog->weapons.at(id).index + 9;
+        if (REX_LOAD_U8(flag)) continue;
+        REX_STORE_U8(flag, 1);
+        opened.push_back(flag);
+      }
+    g.locker_carried.clear();
+  }
+  __imp__sub_82642B98(ctx, base);
+  for (auto flag : opened) REX_STORE_U8(flag, 0);
+  if (!opened.empty()) REXLOG_INFO("ap: locker lists {} carried locked weapon(s)", opened.size());
 }
 
 namespace {
