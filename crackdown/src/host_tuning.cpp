@@ -113,19 +113,23 @@ void ApplyGameDefaults() {
   auto user_set = [](const char* name) {
     return rex::cvar::GetFlagSource(name) != rex::cvar::Source::kDefault;
   };
-  // System Link co-op drops with "Connection to other player lost" about a
-  // second after spawning under the measured clock, and holds at stock 30 fps
-  // (two instances, out/coop-live 2026-10-13); the netcode's timers are not
-  // audited for 60 Hz yet. So co-op networking means stock 30 fps unless
-  // --vsync is set explicitly.
+  // System Link co-op runs the game in lockstep and compares the peers' state
+  // hash every frame (hooks_framerate.cpp, --sim_lockstep_step). Under the
+  // measured clock each peer stepped by its own frame time and the hashes
+  // split about 200 ms into the city: "Connection to other player lost"
+  // (out/coop-live 2026-10-13). In co-op the 60 fps set is applied with
+  // --sim_lockstep_step, which steps exactly 1/60 s per frame on both peers,
+  // so fps_cap is held at 60 there. The older --sim_hz/--sim_variable_step
+  // modes have no lockstep form: with one of them co-op stays stock 30 fps.
   const bool coop = rex::cvar::Query<std::string>("net_mode") != "off";
-  const bool stock = user_set("vsync") ? rex::cvar::Query<bool>("vsync") : coop;
   const bool other_step_mode =
       (user_set("sim_hz") && rex::cvar::Query<int32_t>("sim_hz") > 0) ||
       (user_set("sim_variable_step") && REXCVAR_GET(sim_variable_step));
-  if (stock && !user_set("vsync")) {
-    REXLOG_INFO("crackdown defaults: co-op networking on, stock 30 fps (60 fps defaults not "
-                "applied; --vsync=false overrides)");
+  const bool coop_fallback = coop && other_step_mode && !user_set("vsync");
+  const bool stock = user_set("vsync") ? rex::cvar::Query<bool>("vsync") : coop_fallback;
+  if (coop_fallback) {
+    REXLOG_INFO("crackdown defaults: co-op networking on with --sim_hz/--sim_variable_step, "
+                "which have no lockstep step: stock 30 fps (60 fps defaults not applied)");
   } else if (stock) {
     REXLOG_INFO("crackdown defaults: --vsync=true, stock 30 fps (60 fps defaults not applied)");
   } else if (other_step_mode) {
@@ -151,6 +155,25 @@ void ApplyGameDefaults() {
       REXLOG_INFO("crackdown default: --{}={}", d.name, d.value);
     } else {
       REXLOG_WARN("crackdown default: could not set --{}={}", d.name, d.value);
+    }
+  }
+  if (coop && !stock) {
+    if (!user_set("sim_lockstep_step")) {
+      if (rex::cvar::SetFlagByName("sim_lockstep_step", "true")) {
+        REXLOG_INFO("crackdown default: --sim_lockstep_step=true (co-op networking on)");
+      } else {
+        REXLOG_WARN("crackdown default: could not set --sim_lockstep_step=true");
+      }
+    }
+    // Both peers must run the same 1/60 step at the same rate, whatever the
+    // user or the launcher asked for (ApplyFpsCap and PaceFrame read it later).
+    const int32_t cap = rex::cvar::Query<int32_t>("fps_cap");
+    if (cap != 60) {
+      if (rex::cvar::SetFlagByName("fps_cap", "60")) {
+        REXLOG_INFO("crackdown default: co-op networking on, --fps_cap={} -> 60", cap);
+      } else {
+        REXLOG_WARN("crackdown default: could not hold --fps_cap at 60 in co-op");
+      }
     }
   }
   // --aspect_ratio: give the guest frame buffer the same shape as the camera

@@ -81,6 +81,10 @@ REXCVAR_DEFINE_BOOL(sim_anim_step, false, "Crackdown",
 REXCVAR_DEFINE_BOOL(sim_ground_snap_30hz, true, "Crackdown",
                     "Above 30 fps, give the player's step-down snap (sub_822B4D40) the "
                     "velocity it has at 30 fps instead of drop / frame time (stairs speed bug)");
+REXCVAR_DEFINE_BOOL(sim_lockstep_step, false, "Crackdown",
+                    "With --sim_game_clock: step exactly 1/60 s per frame (16/17/17 ms keyed to "
+                    "the game's frame counter) instead of the measured frame time, so System "
+                    "Link peers simulate identically. On by default in co-op");
 REXCVAR_DECLARE(bool, diag_char_proxy);
 REXCVAR_DEFINE_STRING(frame_log, "", "Crackdown",
                       "Benchmark: write each guest frame's host time (frame_time_us, one row per "
@@ -121,6 +125,7 @@ struct SimFlags {
   bool anim_step = REXCVAR_GET(sim_anim_step);
   bool frame_counter_30hz = REXCVAR_GET(sim_frame_counter_30hz);
   bool ground_snap_30hz = REXCVAR_GET(sim_ground_snap_30hz);
+  bool lockstep_step = REXCVAR_GET(sim_lockstep_step);
   int32_t game_clock_sites = REXCVAR_GET(sim_game_clock_sites);
 };
 const SimFlags& Sim() {
@@ -212,8 +217,11 @@ rex::ui::FrameStats GuestFrameStats() {
 // (host_tuning.cpp) then sets the guest cap to 1000 and this paces frame starts
 // to exactly 1 / fps_cap: sleep to about 1.5 ms before the deadline, then spin.
 // At 60 and below the guest limiter stays in charge (the verified setup).
+// In co-op ApplyGameDefaults clamps fps_cap to 60 (--sim_lockstep_step steps
+// exactly 1/60 s), and this never paces faster than that.
 static void PaceFrame() {
-  static const int32_t cap = rex::cvar::Query<int32_t>("fps_cap");
+  static const int32_t cap = Sim().lockstep_step ? std::min(rex::cvar::Query<int32_t>("fps_cap"), 60)
+                                                 : rex::cvar::Query<int32_t>("fps_cap");
   if (cap <= 60) return;
   static const Clock::duration period = std::chrono::duration_cast<Clock::duration>(
       std::chrono::duration<double>(1.0 / cap));
@@ -234,12 +242,63 @@ static void PaceFrame() {
   deadline += period;
 }
 
+// Stores one frame's step everywhere the measured-clock modes put it.
+static void StoreStep(float step) {
+  g_step.store(step, std::memory_order_relaxed);
+  if (Sim().anim_step) {
+    REX_STORE_U32(kAnimStepAddress, std::bit_cast<uint32_t>(step));
+    REX_STORE_U32(kTimerStepAddress, std::bit_cast<uint32_t>(step));
+  }
+  if (Sim().step_literal) {
+    g_step_scale.store(step * 30.0f, std::memory_order_relaxed);
+  } else {
+    REX_STORE_U32(kStepConstantAddress, std::bit_cast<uint32_t>(step));
+  }
+}
+
+// --sim_lockstep_step (co-op at 60 fps). System Link runs the game in
+// lockstep (disassembly): with a session up, the frame loop sub_82325850
+// calls sub_8246A5C0 every frame, which waits for the peer's input for frame
+// [[0x82DE25C0]+16] - delay and, while it is missing, sets the clock's pause
+// byte +14 so sub_82324938 doesn't advance the counter
+// (crackdown_recomp.152.cpp:6365-6388, .78.cpp:11067-11117). Once the input is
+// there, sub_8246A828 compares the two peers' state hash for that frame,
+// `lfd f0,16(r31); lfd f13,16(r30); fcmpu` (.120.cpp:9571-9578, 9632-9639),
+// and on a mismatch raises error 8 through sub_823C49A0 (.120.cpp:9666-9672),
+// shown as "Connection to other player lost". The hash is the double at
+// 0x82BAEB78+56, written by sub_8231B190 (.143.cpp:6773-7407, past frame 10)
+// under sub_823C4018, which only the update sub_826A6B50 calls. With the
+// measured clock each peer fed that update its own frame time, so the hashes
+// split: out/coop-live 2026-10-13 (A crackdown_013, B crackdown_009, 60 fps)
+// shows the 49-byte lockstep packets every ~16 ms from 21:43:26.393 and all
+// traffic stopping on both peers at 21:43:26.610; at stock 30 fps (A 014,
+// B 010) it runs on. So in this mode the step is a function of the frame
+// counter, which both peers share: frame n gets
+// floor((n + 1) * 1000 / 60) - floor(n * 1000 / 60) ms (16/17/17, exactly
+// 1000/60 on average), and the step is that ms count / 1000 like the measured
+// path. A stalled frame (counter paused) repeats the same values, as stock's
+// fixed 33 ms does.
+static void LockstepStep() {
+  const uint32_t clock = REX_LOAD_U32(kClockPointerAddress);
+  uint32_t ms = kLockedFrameMs;  // no clock yet: stock 33 ms, 1/30
+  float step = 1.0f / 30.0f;
+  if (clock) {
+    const uint64_t n = REX_LOAD_U32(clock + 16);
+    ms = uint32_t((n + 1) * 1000 / 60 - n * 1000 / 60);
+    step = float(ms) / 1000.0f;
+  }
+  g_frame_ms.store(ms, std::memory_order_relaxed);
+  StoreStep(step);
+}
+
 CD_HOOK_RAW(CD_SUB(826A7698, 8272F7C0)) {
   PaceFrame();
   LogFrameTime();
   CountFrame();
   const bool game_clock = Sim().game_clock;
-  if (Sim().variable_step || game_clock) {
+  if (game_clock && Sim().lockstep_step) {
+    LockstepStep();
+  } else if (Sim().variable_step || game_clock) {
     const Clock::time_point now = Clock::now();
     if (g_last_frame != Clock::time_point{}) {
       const double dt = std::chrono::duration<double>(now - g_last_frame).count();
@@ -251,16 +310,7 @@ CD_HOOK_RAW(CD_SUB(826A7698, 8272F7C0)) {
         g_frame_ms.store(ms, std::memory_order_relaxed);
         step = float(ms) / 1000.0f;
       }
-      g_step.store(step, std::memory_order_relaxed);
-      if (Sim().anim_step) {
-        REX_STORE_U32(kAnimStepAddress, std::bit_cast<uint32_t>(step));
-        REX_STORE_U32(kTimerStepAddress, std::bit_cast<uint32_t>(step));
-      }
-      if (Sim().step_literal) {
-        g_step_scale.store(step * 30.0f, std::memory_order_relaxed);
-      } else {
-        REX_STORE_U32(kStepConstantAddress, std::bit_cast<uint32_t>(step));
-      }
+      StoreStep(step);
     }
     g_last_frame = now;
   }
