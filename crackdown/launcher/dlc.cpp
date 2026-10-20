@@ -14,7 +14,7 @@
 
 namespace launcher {
 namespace {
-constexpr uint32_t kTitle = 0x4D5307DC, kMarketplace = 2, kEnd = 0xFFFFFF, kBlock = 0x1000;
+constexpr uint32_t kTitle = 0x4D5307DC, kMarketplace = 2, kTitleUpdate = 0xB0000, kEnd = 0xFFFFFF, kBlock = 0x1000;
 constexpr uint32_t kPerLevel[3] = {170, 170 * 170, 170 * 170 * 170};
 constexpr size_t kHeaderSize = 0x148;  // XCONTENT_AGGREGATE_DATA
 uint32_t be32(const unsigned char* p) { return uint32_t(p[0]) << 24 | uint32_t(p[1]) << 16 | uint32_t(p[2]) << 8 | p[3]; }
@@ -40,14 +40,18 @@ std::string display_name(const unsigned char* utf16be, size_t chars) {
 // Read-only view of one STFS package (volume descriptor at 0x379, hash tables every 170 blocks).
 class Stfs {
  public:
-  explicit Stfs(const fs::path& path) : in_(path, std::ios::binary), length_(fs::file_size(path)) {
+  explicit Stfs(const fs::path& path, uint32_t content_type = kMarketplace)
+      : in_(path, std::ios::binary), length_(fs::file_size(path)) {
     if (!in_) throw std::runtime_error("Cannot open " + utf8(path));
     if (length_ < 0x1000) throw std::runtime_error("Not an Xbox 360 content package");
     read(0, header_.data(), header_.size());
     std::string magic(reinterpret_cast<const char*>(header_.data()), 4);
     if (magic != "LIVE" && magic != "PIRS" && magic != "CON ") throw std::runtime_error("Not an Xbox 360 content package");
     if (be32(&header_[0x360]) != kTitle) throw std::runtime_error("This package is for another game");
-    if (be32(&header_[0x344]) != kMarketplace) throw std::runtime_error("This package is not downloadable content (it may be a save or a title update)");
+    if (be32(&header_[0x344]) != content_type)
+      throw std::runtime_error(content_type == kMarketplace
+                                   ? "This package is not downloadable content (it may be a save or a title update)"
+                                   : "This package is not a title update");
     if (be32(&header_[0x3A9]) != 0) throw std::runtime_error("Unsupported package format (SVOD)");
     const unsigned char* vd = &header_[0x379];
     read_only_ = vd[2] & 1; root_active_ = vd[2] & 2;
@@ -173,14 +177,15 @@ std::vector<DlcPack> list_dlc(const fs::path& user) {
   return result;
 }
 
-DlcPack install_dlc(const fs::path& package, const fs::path& user, const std::atomic_bool& cancel, Progress progress) {
+DlcPack install_dlc(const fs::path& package, const fs::path& user, const std::atomic_bool& cancel, Progress progress,
+                    bool title_update) {
   auto name = utf8(package.filename());
   if (!safe_name(name) || name.size() > 42) throw std::runtime_error("Keep the package's original file name (up to 42 characters)");
   Stfs stfs(package);
   auto files = stfs.files();
   for (const auto& f : files)
-    if (f.path == "Digest2.txt")
-      throw std::runtime_error(stfs.title + " needs Crackdown's title update, which this port doesn't support yet. Nothing was installed.");
+    if (f.path == "Digest2.txt" && !title_update)
+      throw std::runtime_error(stfs.title + " needs Crackdown's title update. Install the title update first (SAVES tab), then this pack. Nothing was installed.");
   uint64_t total = 0, written = 0;
   for (const auto& f : files) if (!f.directory) total += f.length;
 
@@ -225,5 +230,45 @@ DlcPack install_dlc(const fs::path& package, const fs::path& user, const std::at
   out.write(header.data(), static_cast<std::streamsize>(header.size())); out.close();
   if (!out) throw std::runtime_error("Cannot write " + utf8(header_path));
   return {name, stfs.title};
+}
+bool title_update_installed(const fs::path& home) {
+  std::error_code ec;
+  return fs::is_regular_file(home / "title-update" / "Default.xexp", ec);
+}
+
+std::string install_title_update(const fs::path& package, const fs::path& home, const std::atomic_bool& cancel,
+                                 Progress progress) {
+  // Only the update crackdown_tu.exe was recompiled from can run with it.
+  if (hash_file(package, &cancel) != title_update_sha256)
+    throw std::runtime_error("This isn't Crackdown Title Update #6 (TU_16L61US_0000004000000.00000000001G1), "
+                             "the update the title update build is made for. Nothing was installed.");
+  Stfs stfs(package, kTitleUpdate);
+  auto files = stfs.files();
+  bool has_patch = false;
+  uint64_t total = 0, written = 0;
+  for (const auto& f : files) {
+    has_patch |= f.path == "Default.xexp";
+    if (!f.directory) total += f.length;
+  }
+  if (!has_patch) throw std::runtime_error("The title update has no Default.xexp. Nothing was installed.");
+  auto root = fs::absolute(home).lexically_normal(); no_links(root);
+  auto destination = root / "title-update", staging = root / "title-update.partial";
+  remove_quietly(staging);
+  try {
+    fs::create_directory(staging);
+    for (const auto& f : files) {
+      auto target = staging / fs::u8path(f.path);
+      if (f.directory) { fs::create_directories(target); continue; }
+      fs::create_directories(target.parent_path());
+      std::ofstream out(target, std::ios::binary);
+      if (!out) throw std::runtime_error("Cannot write " + utf8(target));
+      stfs.copy(f, out, cancel, [&](uint64_t n) { written += n; if (progress) progress(written, total); });
+      out.close(); if (!out) throw std::runtime_error("Cannot write " + utf8(target));
+    }
+    no_links(destination);
+    remove_quietly(destination);
+    fs::rename(staging, destination);
+  } catch (...) { remove_quietly(staging); throw; }
+  return stfs.title;
 }
 }  // namespace launcher
