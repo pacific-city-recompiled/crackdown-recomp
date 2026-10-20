@@ -6,6 +6,7 @@
 #include <rex/hook.h>
 #include <rex/system/xthread.h>
 #include <rex/system/coop_network_context.h>
+#include <atomic>
 #include <chrono>
 #include <fstream>
 #include <map>
@@ -202,3 +203,28 @@ COOP_TRACE_WRAPPER(8292B0B8,829B4188,"SessionSearchEx")
 COOP_TRACE_WRAPPER(82744760,827CDB28,"PrivilegeWrapper")
 // .140.cpp:32988 sign-in; privilege 252/251 at 0x82A8F034/0x82A8F058.
 COOP_TRACE_WRAPPER(82A8ED90,82B18540,"ProfileGate")
+// --coop_trace_desync: sub_823C49A0(game r3, code r4) is where the System Link
+// layer ends a session (it stores the code at game+762 and hands it to the
+// error screen, sub_8266DDC0). Codes seen in the disassembly: 2 lockstep
+// timeout (10 s real time, sub_8246A5C0 .78.cpp:11177-11188), 7 stall without
+// a resend (.78.cpp:11137-11154), 8 state-hash mismatch (sub_8246A828
+// .120.cpp:9666-9672), 9 frame-scheduled wait over 10 s (.78.cpp:11010-11036),
+// 4/5 pool exhaustion, 0/3 session/sign-in. Logs each distinct code once with
+// the lockstep frame [[0x82DE25C0]+16]. Disc only: the title update's address
+// for this function isn't in docs/tu-address-map.csv yet.
+REXCVAR_DEFINE_BOOL(coop_trace_desync,false,"Crackdown","Log the System Link error code (sub_823C49A0) and lockstep frame, once per code");
+#if !CRACKDOWN_TU
+REX_HOOK_RAW(sub_823C49A0) {
+  if (REXCVAR_GET(coop_trace_desync)) {
+    static std::atomic<uint64_t> seen{0};
+    const uint32_t code=ctx.r4.u32;
+    const uint64_t bit=code<64?(1ull<<code):(1ull<<63);
+    if (!(seen.fetch_or(bit)&bit)) {
+      const uint32_t clock=REX_LOAD_U32(0x82DE25C0);
+      REXLOG_WARN("coop_trace_desync: session error code {} at frame {} (lr {:08X})",code,
+                  clock?REX_LOAD_U32(clock+16):0u,uint32_t(ctx.lr));
+    }
+  }
+  __imp__sub_823C49A0(ctx,base);
+}
+#endif
