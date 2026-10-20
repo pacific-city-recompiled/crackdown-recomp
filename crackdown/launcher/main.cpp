@@ -1,3 +1,4 @@
+#include "content.h"
 #include "core.h"
 #include "games.h"
 #include "platform.h"
@@ -20,7 +21,8 @@
 
 using namespace launcher;
 namespace {
-struct Picker { std::mutex mutex; std::optional<fs::path> picked; bool folder=false; bool pending=false; std::string error; };
+// kind: what the picked file is for (0 disc image or game folder, 1 title update package, 2 DLC package).
+struct Picker { std::mutex mutex; std::optional<fs::path> picked; bool folder=false; bool pending=false; int kind=0; std::string error; };
 void SDLCALL picked(void* data,const char* const* files,int) {
   auto& p=*static_cast<Picker*>(data); std::lock_guard lock(p.mutex);
   if(!files) p.error=SDL_GetError(); else if(files[0]) p.picked=fs::u8path(files[0]);
@@ -85,6 +87,8 @@ int main(int argc,char** argv) {
       catch(...) { if(!updated||attempt==100) throw; SDL_Delay(100); }
     }
     recover_update(home);
+    // Games other than Crackdown 1 update in their own folder (no restart), so an interrupted one is rolled back here.
+    for(const auto& g:kGames) if(*g.folder&&fs::is_directory(home/g.folder)) recover_update(home/g.folder,*g.updates);
   } catch(const std::exception& e) {
     SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,"Crackdown Recomp",e.what(),nullptr);
     SDL_Quit(); return 1;
@@ -120,6 +124,7 @@ int main(int argc,char** argv) {
   int monitor=0,language=1,tab=0; bool focus_page=true; std::string device="keyboard",input_backend="sdl";
   fs::file_time_type log_since{};
   CoopSettings coop; char coop_own[64]{},coop_partner[64]{}; std::string coop_error; std::vector<std::string> coop_addresses;
+  std::vector<ContentPack> dlc_packs;  // installed DLC of the selected game (gp->dlc)
   fs::path user; bool portable=false; std::vector<std::string> profiles; std::string profile; char new_profile[48]{};
   try {
     auto probe=home/(".launcher-write-"+std::to_string(SDL_GetTicks()));
@@ -127,9 +132,11 @@ int main(int argc,char** argv) {
     std::ofstream out(probe); if(!out) throw std::runtime_error("Extract the ZIP into a writable folder, such as Downloads or Documents");
     out<<"probe"; out.close(); if(!out) throw std::runtime_error("Cannot write next to the launcher"); fs::remove(probe);
   } catch(const std::exception& e) { error=e.what(); writable=false; }
+  std::string game_version;  // installed release of the selected game (Crackdown 1: the launcher's own version)
   // Everything read from the selected game's settings file and manifest; rerun when the game changes.
   auto read_game=[&] {
   config=ghome/gp->config; manifest.clear();
+  game_version=gp->updates==&cd1_updates?std::string(LAUNCHER_VERSION):installed_version(ghome,*gp->updates);
   try {
     auto t=read_config(config);
     std::string configured=value<std::string>(t,"game_data_root","");
@@ -152,7 +159,8 @@ int main(int argc,char** argv) {
     camera_speed=std::clamp(static_cast<float>(value<double>(t,"camera_sensitivity",1.0)),0.25f,4.0f);
     input_backend=value<std::string>(t,"input_backend","sdl"); monitor=std::clamp(static_cast<int>(value<int64_t>(t,"monitor",0)),0,16);
   } catch(const std::exception& e) { error=e.what(); }
-  try { manifest=load_manifest(ghome/gp->manifest); } catch(const std::exception& e) { error=e.what(); }
+  // A game whose runtime isn't downloaded yet has no manifest either; the home page says so.
+  try { manifest=load_manifest(ghome/gp->manifest); } catch(const std::exception& e) { if(fs::exists(ghome/gp->exe)) error=e.what(); }
   };
   read_game();
   coop_addresses=local_ipv4_addresses();
@@ -197,14 +205,32 @@ int main(int argc,char** argv) {
   };
   auto save_ap=[&] { ap.server=ap_server; ap.slot=ap_slot; ap.password=ap_password; save_ap_connection(profile_folder(user,profile),ap); };
   load_ap();
+  if(gp->dlc) dlc_packs=list_content_dlc(user,gp->title_id);
   // The on-screen keyboard (controller text entry) edits one buffer at a time.
   struct Keyboard { char* text; size_t size; const char* title; bool secret=false,ap=false; } keyboard{new_profile,sizeof(new_profile),"PROFILE NAME"};
   // An import or a newly selected folder gets the full hash check once; startup re-checks quickly.
-  enum class Job { import_iso, full_check, quick_check };
+  // title_update / dlc_pack install a content package (content.cpp) and keep the game's verified state.
+  enum class Job { import_iso, full_check, quick_check, title_update, dlc_pack };
+  Job running_job=Job::quick_check;
   auto begin=[&](fs::path path,Job job) {
     if(task.thread.joinable()) task.thread.join();
-    verified=false; hash.clear(); task.cancel=false; task.done=false; task.success=false; task.bytes=0; task.total=0;
-    task.message(job==Job::import_iso?"Verifying disc version...":"Verifying game files...");
+    running_job=job; bool content=job==Job::title_update||job==Job::dlc_pack;
+    if(!content) { verified=false; hash.clear(); }
+    task.cancel=false; task.done=false; task.success=false; task.bytes=0; task.total=0;
+    task.message(content?"Checking the package...":job==Job::import_iso?"Verifying disc version...":"Verifying game files...");
+    if(content) {
+      task.thread=std::thread([&,path,job,g=*gp,folder=ghome,disc=game,saves=user] {
+        try {
+          auto progress=[&task,started=false](uint64_t n,uint64_t total) mutable { if(!started) { task.message("Unpacking and checking every block..."); started=true; } task.bytes=n; task.total=total; };
+          std::string title=job==Job::title_update?install_content_update(path,folder,disc,g.title_id,g.update_xexp,task.cancel,progress)
+:[&]{ auto pack=install_content_dlc(path,saves,g.title_id,task.cancel,progress);
+                                                       return pack.damaged_blocks?pack.title+" ("+std::to_string(pack.damaged_blocks)+" damaged block(s) in this dump, kept as they are)":pack.title; }();
+          std::lock_guard lock(task.mutex); task.status=title+" installed."; task.success=true;
+        } catch(const std::exception& e) { task.message(e.what()); }
+        task.done=true;
+      });
+      return;
+    }
     task.thread=std::thread([&,path,job] {
       auto phase=[&](const char* text) {
         return [&task,text,started=false](uint64_t n,uint64_t total) mutable {
@@ -236,19 +262,29 @@ int main(int argc,char** argv) {
   bool quit=false,review_failed=false; unsigned smoke=review || (argc==2 && std::string(argv[1])=="--smoke-ui")?d+22:0;
   bool is_smoke=smoke!=0;
   if(is_smoke) ask_updates=false;
+  // Each game checks its own repository (games.h updates). Crackdown 1's package is the launcher itself, so its
+  // version is the launcher's; another game's is the release installed in its folder (empty: not installed).
   struct Online {
     std::thread worker; std::atomic_bool done=false,cancel=false;
     bool busy=false; std::atomic_bool install=false; std::vector<Release> releases; std::string message;
+    int game=-1;  // the game the releases and the running job belong to
     ~Online() { cancel=true; if(worker.joinable()) worker.join(); }
   } online;
+  auto launcher_package=[&] { return gp->updates==&cd1_updates; };
+  auto current_version=[&] { return game_version; };
   bool github_authorized=auto_updates;
   auto check_updates=[&] {
     github_authorized=true;
     if(online.busy) return;
     if(online.worker.joinable()) online.worker.join();
-    online.busy=true; online.install=false; online.done=false; online.cancel=false; online.message="Checking releases...";
-    online.worker=std::thread([&] {
-      try { auto r=check_releases(beta_channel,online.cancel); online.releases=std::move(r); online.message=online.releases.empty()?"No releases found.":compare_versions(online.releases.front().tag,LAUNCHER_VERSION)>0?"An update is available.":"You are up to date."; }
+    online.busy=true; online.install=false; online.done=false; online.cancel=false; online.message="Checking releases..."; online.releases.clear();
+    online.game=game_sel;
+    // Crackdown 2 has only prereleases so far: they are always offered for it.
+    online.worker=std::thread([&,source=gp->updates,beta=beta_channel||!launcher_package(),current=current_version()] {
+      try {
+        auto r=check_releases(beta,online.cancel,*source); online.releases=std::move(r);
+        online.message=online.releases.empty()?"No releases found.":current.empty()?"Not installed yet: choose a release to install.":compare_versions(online.releases.front().tag,current)>0?"An update is available.":"You are up to date.";
+      }
       catch(const std::exception& e) { online.message=e.what(); }
       online.done=true;
     });
@@ -256,23 +292,26 @@ int main(int argc,char** argv) {
   auto install_update=[&](Release release) {
     if(online.worker.joinable()) online.worker.join();
     online.busy=true; online.install=true; online.done=false; online.cancel=false; online.message="Downloading, verifying and staging update...";
-    online.worker=std::thread([&,release] {
-      try { install_release(release,home,online.cancel); online.message="Update installed. Restarting..."; }
+    online.game=game_sel;
+    online.worker=std::thread([&,release,source=gp->updates,restart=launcher_package()] {
+      try { install_release(release,home,online.cancel,*source); online.message=restart?"Update installed. Restarting...":release.tag+" installed."; }
       catch(const std::exception& e) { online.message=e.what(); online.install=false; }
       online.done=true;
     });
   };
   // Explicit persisted consent is required before the first startup request.
   if(auto_updates&&!ask_updates&&!is_smoke) check_updates();
-  enum class Dialog { none,install,browser,keyboard,updates,quit };
+  enum class Dialog { none,install,browser,keyboard,updates,quit,package };
   Dialog dialog=Dialog::none; bool open_dialog=false,dialog_focus=false,folder_browser=false;
+  int package_kind=0;  // Dialog::package and its file browser: 1 title update, 2 DLC (0: disc browser)
   fs::path browse=home; std::vector<fs::directory_entry> browse_entries; std::vector<fs::path> browse_roots;
   auto refresh_browser=[&] {
     browse_entries.clear(); std::error_code ec;
     for(fs::directory_iterator i(browse,fs::directory_options::skip_permission_denied,ec),end;!ec&&i!=end;i.increment(ec)) {
       auto& entry=*i; bool dir=entry.is_directory(ec); if(ec) { ec.clear(); continue; }
       auto extension=utf8(entry.path().extension()); std::transform(extension.begin(),extension.end(),extension.begin(),[](unsigned char c){return char(std::tolower(c));});
-      if(dir||(!folder_browser&&extension==".iso")) browse_entries.push_back(entry);
+      // Content packages have no extension: the package browser lists every file.
+      if(dir||(!folder_browser&&(package_kind?entry.is_regular_file(ec):extension==".iso"))) browse_entries.push_back(entry);
     }
     std::sort(browse_entries.begin(),browse_entries.end(),[](const auto& a,const auto& b){std::error_code ec; bool ad=a.is_directory(ec),bd=b.is_directory(ec); if(ad!=bd) return ad; return a.path().filename()<b.path().filename();});
   };
@@ -288,7 +327,9 @@ int main(int argc,char** argv) {
   auto switch_game=[&](int index) {
     game_sel=index; gp=&kGames[index]; ghome=game_home(home,*gp);
     changes.clear(); error.clear(); crash.clear(); report.clear(); verified=false; hash.clear(); visuals->clear_art();
+    online.releases.clear(); online.message.clear(); online.game=-1;
     read_game(); read_user(); load_ap();
+    dlc_packs.clear(); if(gp->dlc) dlc_packs=list_content_dlc(user,gp->title_id);
     if(tab==tab_ap&&!gp->archipelago) tab=0;
     focus_page=true;
     try { update_config(preferences,{{"selected_game",toml_string(gp->id)}}); } catch(const std::exception& e) { error=e.what(); }
@@ -308,6 +349,8 @@ int main(int argc,char** argv) {
         auto tu=fs::is_directory(ghome/"tu")?ghome/"tu":game/"TU";
         if(fs::is_directory(tu)) args.push_back("--update_data_root="+utf8(tu));
       }
+      // DLC packs are installed once in the save root and shared by every profile (SDK patch 0025 of that game).
+      if(gp->dlc) args.push_back("--dlc_root="+utf8(user));
       // The game reads the password from the profile's connection.toml itself.
       if(!profile.empty()) save_ap();
       auto extra=ap_args(profile.empty()?ApConnection{}:ap); args.insert(args.end(),extra.begin(),extra.end());
@@ -368,7 +411,15 @@ int main(int argc,char** argv) {
     {
       std::lock_guard lock(picker.mutex);
       if(!picker.error.empty()) { error=picker.error; picker.error.clear(); }
+      if(picker.picked&&picker.kind) { begin(*picker.picked,picker.kind==1?Job::title_update:Job::dlc_pack); busy=true; picker.picked.reset(); error.clear(); report.clear(); focus_page=true; }
       if(picker.picked) { visuals->clear_art(); begin(*picker.picked,picker.folder?Job::full_check:Job::import_iso); busy=true; picker.picked.reset(); error.clear(); tab=0; focus_page=true; }
+    }
+    if(busy && task.done && (running_job==Job::title_update||running_job==Job::dlc_pack)) {
+      task.thread.join(); busy=false;
+      std::lock_guard lock(task.mutex);
+      if(task.success) { report=task.status; error.clear(); } else error=task.status;
+      if(gp->dlc) dlc_packs=list_content_dlc(user,gp->title_id);
+      focus_page=true;
     }
     if(busy && task.done) {
       task.thread.join(); busy=false;
@@ -381,7 +432,10 @@ int main(int argc,char** argv) {
     }
     if(online.busy&&online.done) {
       online.worker.join(); online.busy=false;
-      if(online.install) {
+      if(online.install&&!launcher_package()) {
+        // Installed into the game's folder: reload its manifest and settings and check its files again.
+        online.install=false; auto message=online.message; switch_game(game_sel); online.message=message; tab=0;
+      } else if(online.install) {
         // The successor waits for this process to release the package lock.
         try { restart_launcher(home); quit=true; }
         catch(const std::exception& e) { error=e.what(); try { rollback_completed_update(home); online.install=false; online.message="Update rolled back: "+error; } catch(const std::exception& rollback) { error+="; rollback requires restart: "+std::string(rollback.what()); } }
@@ -464,8 +518,18 @@ int main(int argc,char** argv) {
         auto total=task.total.load(),bytes=task.bytes.load(); ImGui::ProgressBar(total?static_cast<float>(double(bytes)/total):0,{430*ui_scale,0});
         if(total) ImGui::Text("%.1f / %.1f GB",bytes/1e9,total/1e9);
         focus_first(); if(ImGui::Button("Cancel verification / import")) task.cancel=true;
+      } else if(!launcher_package()&&!fs::is_regular_file(ghome/gp->exe)) {
+        // This game's runtime comes from its own repository; nothing else works until it is in its folder.
+        if(menu("DOWNLOAD RUNTIME",!blocked)) { show_dialog(Dialog::updates); check_updates(); }
+        if(menu("SETTINGS")) { tab=1; focus_page=true; }
+        if(menu("QUIT",!(online.busy&&online.install))) show_dialog(Dialog::quit);
+        ImGui::TextWrapped("%s is not installed in this launcher yet. Download its latest release from github.com/%s into %s, then install your game files.",
+                           gp->title,gp->updates->repository,utf8(ghome).c_str());
       } else {
-        if(menu(process.running()?"PLAYING...":verified?"PLAY":"INSTALL GAME",!blocked&&!manifest.empty())) { if(verified) launch(); else show_dialog(Dialog::install); }
+        bool needs_update=gp->title_update&&verified&&!fs::is_regular_file(game/"default.xexp");
+        if(needs_update) { if(menu("INSTALL TITLE UPDATE",!blocked)) { package_kind=1; show_dialog(Dialog::package); } }
+        else if(menu(process.running()?"PLAYING...":verified?"PLAY":"INSTALL GAME",!blocked&&!manifest.empty())) { if(verified) launch(); else show_dialog(Dialog::install); }
+        if(gp->dlc&&verified&&menu("INSTALL DLC",!blocked)) { package_kind=2; show_dialog(Dialog::package); }
         if(menu("VERIFY GAME FILES",!blocked&&!manifest.empty()&&fs::is_directory(game))) { visuals->clear_art(); begin(game,Job::full_check); busy=true; error.clear(); focus_page=true; }
         if(menu("CHECK FOR UPDATES",!online.busy)) { show_dialog(Dialog::updates); check_updates(); }
         if(menu("SETTINGS")) { tab=1; focus_page=true; }
@@ -614,6 +678,12 @@ int main(int argc,char** argv) {
         load_ap();
         if(ok) error.clear();
       }
+      if(gp->dlc) {
+        ImGui::SeparatorText("Downloadable content");
+        if(dlc_packs.empty()) ImGui::TextDisabled("No DLC packs installed. Use INSTALL DLC on the home page.");
+        for(const auto& pack:dlc_packs) ImGui::BulletText("%s",pack.title.c_str());
+        if(ImGui::Button("Install DLC pack...")) { package_kind=2; show_dialog(Dialog::package); }
+      }
       ImGui::EndDisabled(); ImGui::TextWrapped("%s",portable?"Saves are in userdata next to the launcher. Turning this off goes back to Documents\\crackdown; nothing is deleted.":"A new profile starts with no save: choose New Game. Profiles share the shader cache. Portable mode copies your saves next to the launcher and uses them from there.");
     }
     if(tab==tab_ap&&gp->archipelago) {
@@ -656,10 +726,11 @@ int main(int argc,char** argv) {
     }
     if(tab==tab_about) {
       ImGui::Text("Crackdown Recomp / Launcher %s (selected: %s)",LAUNCHER_VERSION,gp->title);
-      ImGui::TextWrapped("Update source: %s (preview configuration)",release_repository);
+      ImGui::TextWrapped("Update source for %s: github.com/%s",gp->title,gp->updates->repository);
+      if(!launcher_package()) { auto v=current_version(); ImGui::TextWrapped("Installed %s release: %s",gp->title,v.empty()?"none":v.c_str()); }
       ImGui::TextWrapped("Standalone front end using SDL3, Dear ImGui, toml++ and stb_image. Barlow fonts: SIL OFL 1.1. Controller prompts: CC0. Game art comes from your verified files.");
       focus_first(); if(ImGui::Button("Open licenses")) { try { show_folder(home/"LICENSES"); } catch(const std::exception& e) { error=e.what(); } }
-      ImGui::SameLine(); ImGui::BeginDisabled(!github_authorized); if(ImGui::Button("Open repository")) { auto url="https://github.com/"+std::string(release_repository); if(!SDL_OpenURL(url.c_str())) error=SDL_GetError(); } ImGui::EndDisabled();
+      ImGui::SameLine(); ImGui::BeginDisabled(!github_authorized); if(ImGui::Button("Open repository")) { auto url="https://github.com/"+std::string(gp->updates->repository); if(!SDL_OpenURL(url.c_str())) error=SDL_GetError(); } ImGui::EndDisabled();
       if(ImGui::Button("Open logs folder")) { try { fs::create_directories(home/"logs"); show_folder(home/"logs"); } catch(const std::exception& e) { error=e.what(); } }
       ImGui::SameLine(); if(ImGui::Button("Copy system info")) {
         try { report="Launcher: " LAUNCHER_VERSION "\n"+system_info()+"Game XEX SHA256: "+hash+"\nSave profile: "+(profile.empty()?"default":profile)+"\ncrackdown.toml:\n"+redacted_config(config); if(!SDL_SetClipboardText(report.c_str())) error=SDL_GetError(); }
@@ -671,7 +742,7 @@ int main(int argc,char** argv) {
         try { update_config(preferences,{{"auto_updates",proposed?"true":"false"},{"update_consent_asked","true"}}); auto_updates=proposed; if(auto_updates) check_updates(); } catch(const std::exception& e) { error=e.what(); }
       }
       proposed=beta_channel;
-      if(ImGui::Checkbox("Include prereleases",&proposed)) { try { update_config(preferences,{{"beta_updates",proposed?"true":"false"}}); beta_channel=proposed; } catch(const std::exception& e) { error=e.what(); } }
+      if(ImGui::Checkbox(launcher_package()?"Include prereleases":"Include Crackdown prereleases (Crackdown 2 always lists them)",&proposed)) { try { update_config(preferences,{{"beta_updates",proposed?"true":"false"}}); beta_channel=proposed; } catch(const std::exception& e) { error=e.what(); } }
       ImGui::EndDisabled();
       if(ImGui::Button("Version history / updates")) show_dialog(Dialog::updates);
       if(!visuals->art_status.empty()) ImGui::TextWrapped("Art fallback: %s",visuals->art_status.c_str());
@@ -681,14 +752,14 @@ int main(int argc,char** argv) {
     if(!report.empty()&&tab==0) ImGui::TextWrapped("%s",report.c_str());
     if(!crash.empty()) { ImGui::BeginChild("Startup log",{0,130*ui_scale},true); ImGui::TextUnformatted(crash.c_str()); ImGui::EndChild(); }
     ImGui::EndChild();
-    ImGui::Separator(); ImGui::Text(gp->archipelago?"GAME  %s     PROFILE  %s     ARCHIPELAGO  %s     VERSION  %s":"GAME  %s     PROFILE  %s%.0s     VERSION  %s",busy?"Checking...":verified?"Ready to play":"Not installed",profile.empty()?"Default":profile.c_str(),!profile.empty()&&ap.enabled?"On":"Off",LAUNCHER_VERSION);
+    ImGui::Separator(); ImGui::Text(gp->archipelago?"GAME  %s     PROFILE  %s     ARCHIPELAGO  %s     VERSION  %s":"GAME  %s     PROFILE  %s%.0s     VERSION  %s",busy?"Checking...":verified?"Ready to play":"Not installed",profile.empty()?"Default":profile.c_str(),!profile.empty()&&ap.enabled?"On":"Off",game_version.empty()?"-":game_version.c_str());
     visuals->hints(device,ui_scale);
     ImGui::End();
     if(ask_updates) ImGui::OpenPopup("Update preferences");
     ImGui::SetNextWindowSize({610*ui_scale,0},ImGuiCond_Always);
     if(ImGui::BeginPopupModal("Update preferences",nullptr,ImGuiWindowFlags_AlwaysAutoResize)) {
       ImGui::TextWrapped("Allow the launcher to check GitHub Releases when it opens? No request is made until you enable this. You can always check manually.");
-      ImGui::TextWrapped("Update source: %s (preview configuration).",release_repository);
+      ImGui::TextWrapped("Update sources: github.com/%s (Crackdown and this launcher) and github.com/%s (Crackdown 2).",cd1_updates.repository,cd2_updates.repository);
       auto consent=[&](bool enabled) {
         try { update_config(preferences,{{"auto_updates",enabled?"true":"false"},{"update_consent_asked","true"}}); auto_updates=enabled; ask_updates=false; ImGui::CloseCurrentPopup(); focus_page=true; if(enabled) check_updates(); }
         catch(const std::exception& e) { error=e.what(); }
@@ -707,20 +778,20 @@ int main(int argc,char** argv) {
       if(dialog==Dialog::install) {
         ImGui::TextUnformatted("INSTALL GAME"); ImGui::TextWrapped("%s Your source files are kept in place.",gp->disc_hint);
         modal_focus();
-        auto browser=[&](bool folder) { folder_browser=folder; browse=fs::is_directory(game)?game:ghome; refresh_browser(); dialog=Dialog::browser; dialog_focus=true; };
+        auto browser=[&](bool folder) { folder_browser=folder; package_kind=0; browse=fs::is_directory(game)?game:ghome; refresh_browser(); dialog=Dialog::browser; dialog_focus=true; };
         if(ImGui::Button("Browse ISO")) browser(false);
         ImGui::SameLine(); if(ImGui::Button("Browse extracted folder")) browser(true);
         if(ImGui::Button("Native ISO picker (keyboard / mouse)")) {
-          { std::lock_guard lock(picker.mutex); picker.pending=true; picker.folder=false; }
+          { std::lock_guard lock(picker.mutex); picker.pending=true; picker.folder=false; picker.kind=0; }
           static const SDL_DialogFileFilter filters[]={{"Xbox disc image","iso"}};
           SDL_ShowOpenFileDialog(picked,&picker,window,filters,1,nullptr,false); close_dialog();
         }
         if(ImGui::Button("Native folder picker (keyboard / mouse)")) {
-          { std::lock_guard lock(picker.mutex); picker.pending=true; picker.folder=true; }
+          { std::lock_guard lock(picker.mutex); picker.pending=true; picker.folder=true; picker.kind=0; }
           SDL_ShowOpenFolderDialog(picked,&picker,window,nullptr,false); close_dialog();
         }
       } else if(dialog==Dialog::browser) {
-        ImGui::TextUnformatted(folder_browser?"SELECT GAME FOLDER":"SELECT DISC IMAGE"); ImGui::TextWrapped("%s",utf8(browse).c_str()); modal_focus();
+        ImGui::TextUnformatted(package_kind==1?"SELECT TITLE UPDATE PACKAGE":package_kind==2?"SELECT DLC PACKAGE":folder_browser?"SELECT GAME FOLDER":"SELECT DISC IMAGE"); ImGui::TextWrapped("%s",utf8(browse).c_str()); modal_focus();
         if(ImGui::BeginCombo("Location",utf8(browse).c_str())) {
           for(const auto& root:browse_roots) if(ImGui::Selectable(utf8(root).c_str())) { browse=root; refresh_browser(); dialog_focus=true; } ImGui::EndCombo();
         }
@@ -733,7 +804,11 @@ int main(int argc,char** argv) {
           if(ImGui::Selectable(name.c_str())) { chosen=e.path(); directory=dir; } ImGui::PopID();
         }
         ImGui::EndChild();
-        if(chosen) { if(directory) { browse=*chosen; refresh_browser(); dialog_focus=true; } else { visuals->clear_art(); begin(*chosen,Job::import_iso); busy=true; tab=0; close_dialog(); } }
+        if(chosen) {
+          if(directory) { browse=*chosen; refresh_browser(); dialog_focus=true; }
+          else if(package_kind) { begin(*chosen,package_kind==1?Job::title_update:Job::dlc_pack); busy=true; error.clear(); report.clear(); tab=0; close_dialog(); }
+          else { visuals->clear_art(); begin(*chosen,Job::import_iso); busy=true; tab=0; close_dialog(); }
+        }
       } else if(dialog==Dialog::keyboard) {
         auto& k=keyboard; auto n=std::char_traits<char>::length(k.text);
         ImGui::TextUnformatted(k.title); ImGui::Text("%s",k.secret?std::string(n,'*').c_str():k.text); modal_focus();
@@ -747,7 +822,8 @@ int main(int argc,char** argv) {
           close_dialog();
         }
       } else if(dialog==Dialog::updates) {
-        ImGui::TextUnformatted("UPDATES / VERSION HISTORY"); ImGui::TextWrapped("Update source: %s",release_repository);
+        auto installed=current_version();
+        ImGui::Text("UPDATES / VERSION HISTORY: %s",gp->title); ImGui::TextWrapped("Update source: github.com/%s. Installed: %s",gp->updates->repository,installed.empty()?"none":installed.c_str());
         modal_focus(); ImGui::BeginDisabled(online.busy);
         if(ImGui::Button("Check for updates")) check_updates(); ImGui::EndDisabled();
         if(online.busy) {
@@ -759,12 +835,23 @@ int main(int argc,char** argv) {
           for(size_t i=0;i<online.releases.size();++i) {
             const auto& r=online.releases[i]; ImGui::PushID(static_cast<int>(i));
             ImGui::Text("%s%s",r.tag.c_str(),r.prerelease?" (prerelease)":""); ImGui::TextWrapped("%s",r.notes.c_str());
-            bool newer=compare_versions(r.tag,LAUNCHER_VERSION)>0;
-            ImGui::BeginDisabled(!newer||r.zip_url.empty()||r.sha_url.empty()||blocked);
-            if(ImGui::Button("Update now")) install_update(r); ImGui::EndDisabled(); ImGui::Separator(); ImGui::PopID();
+            bool newer=installed.empty()||compare_versions(r.tag,installed)>0;
+            ImGui::BeginDisabled(!newer||r.zip_url.empty()||r.sha_url.empty()||blocked||online.game!=game_sel);
+            if(ImGui::Button(installed.empty()?"Install":"Update now")) install_update(r); ImGui::EndDisabled(); ImGui::Separator(); ImGui::PopID();
             if(online.busy) break;
           }
           ImGui::EndChild();
+        }
+      } else if(dialog==Dialog::package) {
+        ImGui::TextUnformatted(package_kind==1?"INSTALL TITLE UPDATE":"INSTALL DLC");
+        ImGui::TextWrapped(package_kind==1
+          ?"Select %s's title update package (a file named like TU_16L625S_0000004000000.0000000000181, from a console's Content\\0000000000000000\\<title id>\\000B0000 folder). The launcher checks it, puts default.xexp next to the game's default.xex and unpacks the rest into tu\\. The package itself is kept."
+          :"Select a %s DLC package (from a console's Content\\0000000000000000\\<title id>\\00000002 folder; keep its original file name). It is unpacked once into your save folder and every profile can use it. The package itself is kept.",gp->title);
+        modal_focus();
+        if(ImGui::Button("Browse files")) { folder_browser=false; browse=ghome; refresh_browser(); dialog=Dialog::browser; dialog_focus=true; }
+        if(ImGui::Button("Native file picker (keyboard / mouse)")) {
+          { std::lock_guard lock(picker.mutex); picker.pending=true; picker.folder=false; picker.kind=package_kind; }
+          SDL_ShowOpenFileDialog(picked,&picker,window,nullptr,0,nullptr,false); close_dialog();
         }
       } else if(dialog==Dialog::quit) {
         ImGui::TextUnformatted("QUIT LAUNCHER?"); if(!changes.empty()) ImGui::TextWrapped("There are unsaved game settings."); modal_focus();
@@ -774,7 +861,7 @@ int main(int argc,char** argv) {
       if(dialog!=Dialog::none) {
         if(dialog!=Dialog::browser) ImGui::Spacing();
         if(ImGui::Button("Back") || (back&&!child_popup&&!modal_child_before&&!editing_before)) {
-          if(dialog==Dialog::browser) { dialog=Dialog::install; dialog_focus=true; }
+          if(dialog==Dialog::browser) { dialog=package_kind?Dialog::package:Dialog::install; dialog_focus=true; }
           else close_dialog();
         }
       }

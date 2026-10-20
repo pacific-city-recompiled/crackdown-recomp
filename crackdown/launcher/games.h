@@ -3,6 +3,7 @@
 // migration); Crackdown 2 lives in cd2/ with its own exe, SDK DLLs, settings, manifest and game files, because its
 // runtime DLLs differ from Crackdown 1's (separate SDK patch set) and share their names.
 #include "core.h"
+#include "v2.h"
 #include <string>
 
 namespace launcher {
@@ -19,20 +20,25 @@ struct GameProfile {
   const char* profile_key;  // launcher.toml key for the selected save profile
   const char* disc_hint;
   bool coop, archipelago, title_update, steam;
+  const UpdateSource* updates;  // its GitHub releases (Crackdown 2 installs its runtime into its folder from there)
+  uint32_t title_id;            // Xbox title id of its content packages (title update, DLC)
+  const char* update_xexp;      // title_update: SHA256 of the supported update's default.xexp
+  bool dlc;                     // the launcher installs DLC packs (and passes --dlc_root)
 };
 
 // Crackdown 2: World multi-language disc (XGD2), default.xex sha256 below. It runs with title update 0.0.5.1
-// applied: default.xexp next to default.xex, the update's other files in game/TU and tu/ (passed as
-// --update_data_root). See github.com/Unowa001/Crackdown-2-Recomp README.
+// applied: default.xexp next to default.xex and the update's files in tu/ (passed as --update_data_root); the
+// launcher installs both from the update package (content.cpp). See github.com/Unowa001/Crackdown-2-Recomp README.
 inline constexpr GameProfile kGames[] = {
     {"cd1", "CRACKDOWN", "", "crackdown.exe", "crackdown.toml", "game-manifest.txt", "crackdown", "crackdown_",
      supported_xex, "profile", "Select your supported World multi-language disc image or an extracted game folder.",
-     true, true, false, true},
+     true, true, false, true, &cd1_updates, 0x4D5307DC, nullptr, false},
     {"cd2", "CRACKDOWN 2", "cd2", "crackdown2.exe", "crackdown2.toml", "game-manifest.txt", "crackdown2",
      "crackdown2_", "8959c449e382661d29b8ea479c685f506cd5bd3eca40b3d73a51cc10f281069f", "profile_cd2",
      "Select your Crackdown 2 World multi-language disc image or an extracted game folder. The title update "
-     "(0.0.5.1) is required: put default.xexp next to default.xex and the update's files in game\\TU.",
-     false, false, true, false},
+     "(0.0.5.1) is installed next, from its package.",
+     false, false, true, false, &cd2_updates, 0x4D5308BC,
+     "a5e49fc1ff7f6f65e6f95a7b5c4b9392bb9e38674d1237ac0e2f0149d05929d7", true},
 };
 inline constexpr int kGameCount = int(sizeof(kGames) / sizeof(kGames[0]));
 inline int game_index(const std::string& id) {

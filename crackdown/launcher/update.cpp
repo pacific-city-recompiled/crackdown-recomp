@@ -93,7 +93,8 @@ void plain_path(const fs::path& root,const fs::path& relative) {
   auto path=root; if(linked(path)) fail("Linked update root is not allowed");
   for(const auto& part:relative) { path/=part; if(linked(path)) fail("Linked update path is not allowed: "+utf8(path)); }
 }
-std::vector<std::string> staged_files(const fs::path& stage) {
+bool is_cd1(const UpdateSource& source) { return !*source.folder; }
+std::vector<std::string> staged_files(const fs::path& stage,const UpdateSource& source) {
   if(!fs::is_directory(stage)||linked(stage)) fail("Invalid update staging folder"); std::vector<std::string> files; std::set<std::string> seen;
   for(const auto& item:fs::recursive_directory_iterator(stage)) {
     if(linked(item.path())) fail("Linked update input"); if(item.is_directory()) continue;
@@ -101,9 +102,11 @@ std::vector<std::string> staged_files(const fs::path& stage) {
     // path separators would otherwise reject all nested assets in the allowlist.
     auto generic=item.path().lexically_relative(stage).generic_u8string();
     std::string rel(generic.begin(),generic.end()); std::string lower=rel; std::transform(lower.begin(),lower.end(),lower.begin(),[](unsigned char c){return char(std::tolower(c));});
-    if(!item.is_regular_file()||!update_path_allowed(rel)||!seen.insert(lower).second) fail("Forbidden update file: "+rel); files.push_back(rel);
+    if(!item.is_regular_file()||!update_path_allowed(rel,source)||!seen.insert(lower).second) fail("Forbidden update file: "+rel); files.push_back(rel);
   }
-  for(const auto& required:{"CrackdownLauncher.exe","crackdown.exe","game-manifest.txt","xui/Scene.xpatch","xui/menuHUD_3.xpatch"}) if(std::find(files.begin(),files.end(),required)==files.end()) fail("Incomplete update package");
+  static const std::vector<std::string> cd1={"CrackdownLauncher.exe","crackdown.exe","game-manifest.txt","xui/Scene.xpatch","xui/menuHUD_3.xpatch"};
+  static const std::vector<std::string> cd2={"crackdown2.exe","rexruntime.dll","rexgpu-xenos.dll","game-manifest.txt"};
+  for(const auto& required:is_cd1(source)?cd1:cd2) if(std::find(files.begin(),files.end(),required)==files.end()) fail("Incomplete update package");
   std::sort(files.begin(),files.end()); return files;
 }
 }
@@ -115,7 +118,7 @@ int compare_versions(const std::string& a,const std::string& b) {
     bool un=digits(u),vn=digits(v); if(un&&vn) return numeric(u)<numeric(v)?-1:1; if(un!=vn) return un?-1:1; return u<v?-1:1;
   } return x.pre.size()==y.pre.size()?0:x.pre.size()<y.pre.size()?-1:1;
 }
-std::vector<Release> parse_releases(const std::string& json) {
+std::vector<Release> parse_releases(const std::string& json,const UpdateSource& source) {
   auto root=JsonReader(json).read(); std::vector<Json> objects;
   if(root.type=='a') objects=std::move(root.array); else if(root.type=='o') objects.push_back(std::move(root)); else fail("Invalid release response");
   std::vector<Release> releases;
@@ -127,7 +130,7 @@ std::vector<Release> parse_releases(const std::string& json) {
     if(assets!=j.object.end()&&assets->second.type=='a') {
       std::map<std::string,std::string> urls;
       for(const auto& a:assets->second.array) { auto name=jstr(a,"name"); if(!urls.emplace(name,jstr(a,"browser_download_url")).second) fail("Duplicate release asset"); }
-      for(const auto& [name,url]:urls) if(name.starts_with("CrackdownRecomp-")&&name.ends_with(".zip")&&urls.contains(name+".sha256")) {
+      for(const auto& [name,url]:urls) if(name.starts_with(source.zip_prefix)&&name.ends_with(".zip")&&urls.contains(name+".sha256")) {
         if(!r.zip_url.empty()) fail("Release has multiple package ZIPs"); r.zip_url=url; r.sha_url=urls.at(name+".sha256");
       }
     }
@@ -141,9 +144,15 @@ void verify_download(const fs::path& zip,const std::string& checksum) {
   std::transform(hash.begin(),hash.end(),hash.begin(),[](unsigned char c){return char(std::tolower(c));});
   if(hash_file(zip)!=hash) fail("Update ZIP failed SHA256 verification");
 }
-bool update_path_allowed(const std::string& relative) {
+bool update_path_allowed(const std::string& relative,const UpdateSource& source) {
   if(relative.empty()||relative.find('\\')!=relative.npos) return false; auto parts=split(relative,'/');
   for(const auto& p:parts) if(!safe_name(p)) return false;
+  if(!is_cd1(source)) {
+    // Crackdown 2 package (Crackdown-2-Recomp tools/package-beta.ps1): runtime, manifest and its setup scripts.
+    static const std::set<std::string> names={"crackdown2.exe","rexruntime.dll","rexgpu-xenos.dll","TracyClient.dll","game-manifest.txt","README.txt","VERSION.txt","setup_game.py","xiso_extract.py","stfs_extract.py","install_dlc.py"};
+    if(parts.size()==1) return names.contains(relative);
+    return parts.size()==2&&parts[0]=="LICENSES"&&parts[1].ends_with(".txt");
+  }
   if(parts.size()==1) { static const std::set<std::string> names={"CrackdownLauncher.exe","crackdown.exe","rexruntime.dll","rexgpu-xenos.dll","TracyClient.dll","game-manifest.txt","README.txt","VERSION.txt"}; return names.contains(relative); }
   if(parts.size()==2&&parts[0]=="LICENSES") return parts[1].ends_with(".txt");
   if(parts.size()==2&&parts[0]=="xui") return parts[1]=="Scene.xpatch"||parts[1]=="menuHUD_3.xpatch";
@@ -151,7 +160,7 @@ bool update_path_allowed(const std::string& relative) {
   if(parts.size()==3&&parts[0]=="assets"&&parts[1]=="glyphs") return parts[2]=="LICENSE.txt";
   return parts.size()==4&&parts[0]=="assets"&&parts[1]=="glyphs"&&(parts[2]=="ps5"||parts[2]=="xbox_series"||parts[2]=="keyboard")&&parts[3].ends_with(".png");
 }
-void recover_update(const fs::path& package) {
+void recover_update(const fs::path& package,const UpdateSource& source) {
   auto backup=package/".launcher-update-backup";
   auto cleanup_exes=[&] { std::error_code ec; fs::remove(package/"CrackdownLauncher.old.exe",ec); fs::remove(package/"CrackdownLauncher.failed.exe",ec); };
   if(!fs::exists(backup)) { cleanup_exes(); return; }
@@ -163,7 +172,7 @@ void recover_update(const fs::path& package) {
     std::vector<std::pair<std::string,bool>> files; std::set<std::string> seen;
     for(const auto& e:*entries) {
       auto t=e.as_table(); if(!t) fail("Invalid rollback entry"); auto name=(*t)["path"].value<std::string>(); auto existed=(*t)["existed"].value<bool>();
-      if(!name||!existed||!update_path_allowed(*name)||!seen.insert(*name).second) fail("Forbidden rollback path");
+      if(!name||!existed||!update_path_allowed(*name,source)||!seen.insert(*name).second) fail("Forbidden rollback path");
       plain_path(package,fs::u8path(*name)); plain_path(backup,fs::u8path(*name));
       if(*existed&&!fs::is_regular_file(backup/fs::u8path(*name))) fail("Missing rollback file"); files.emplace_back(*name,*existed);
     }
@@ -184,8 +193,8 @@ void recover_update(const fs::path& package) {
   }
   fs::remove_all(backup); cleanup_exes();
 }
-void replace_staged(const fs::path& package,const fs::path& staging,const std::function<void(size_t)>& before_copy) {
-  auto files=staged_files(staging); auto backup=package/".launcher-update-backup";
+void replace_staged(const fs::path& package,const fs::path& staging,const std::function<void(size_t)>& before_copy,const UpdateSource& source) {
+  auto files=staged_files(staging,source); auto backup=package/".launcher-update-backup";
   if(fs::exists(backup)||fs::exists(package/"CrackdownLauncher.old.exe")) fail("An earlier update needs recovery; restart the launcher");
   for(const auto& name:files) { plain_path(package,fs::u8path(name)); if(fs::exists(package/fs::u8path(name))&&!fs::is_regular_file(package/fs::u8path(name))) fail("Update destination is not a file"); }
   if(!fs::create_directory(backup)) fail("Cannot create update backup");
@@ -206,7 +215,7 @@ void replace_staged(const fs::path& package,const fs::path& staging,const std::f
       ConfigTemp temporary(target); temporary.replace(target,std::string(bytes.begin(),bytes.end()));
     }
     fs::rename(backup/"journal.toml",backup/"completed.toml"); // Commit point. Retain rollback until restart succeeds.
-  } catch(...) { if(journal_written) recover_update(package); else { std::error_code ec; fs::remove_all(backup,ec); } throw; }
+  } catch(...) { if(journal_written) recover_update(package,source); else { std::error_code ec; fs::remove_all(backup,ec); } throw; }
 }
 #ifdef _WIN32
 namespace {
@@ -240,16 +249,16 @@ Bytes request(std::string url,uint64_t limit,const std::atomic_bool& cancel) {
   } fail("Too many update redirects");
 }
 std::string ps_literal(const fs::path& p) { std::string s=utf8(p),r="'"; for(char c:s) { r+=c; if(c=='\'') r+=c; } return r+"'"; }
-void extract_zip(const fs::path& zip,const fs::path& staging,const std::atomic_bool& cancel) {
+void extract_zip(const fs::path& zip,const fs::path& staging,const std::atomic_bool& cancel,const UpdateSource& source) {
   // .NET validates/decompresses ZIPs; our script validates every name before writing anything.
   // No external archive executable/dependency ships with the launcher.
   auto script=staging.parent_path()/"extract.ps1";
   std::string text="\xEF\xBB\xBF$ErrorActionPreference = 'Stop'\nAdd-Type -AssemblyName System.IO.Compression.FileSystem\n";
-  text+="$zip = [IO.Compression.ZipFile]::OpenRead("+ps_literal(zip)+")\n$stage = "+ps_literal(staging)+"\ntry {\n$items = @()\n$seen = @{}\n$root = $null\n$total = 0L\nforeach ($e in $zip.Entries) {\n";
+  text+="$zip = [IO.Compression.ZipFile]::OpenRead("+ps_literal(zip)+")\n$stage = "+ps_literal(staging)+"\n$prefix = "+ps_literal(fs::u8path(source.zip_prefix))+"\n$cd1 = "+(is_cd1(source)?"$true":"$false")+"\ntry {\n$items = @()\n$seen = @{}\n$root = $null\n$total = 0L\nforeach ($e in $zip.Entries) {\n";
   text+=R"PS($name = $e.FullName
 if ($name -match '[\\:]|^/|(^|/)\.\.?(/|$)' -or $name -match '[\x00-\x1f]') { throw 'Unsafe ZIP path' }
 $parts = $name.Split('/')
-if ($parts.Count -lt 2 -or -not $parts[0].StartsWith('CrackdownRecomp-')) { throw 'ZIP must contain one package directory' }
+if ($parts.Count -lt 2 -or -not $parts[0].StartsWith($prefix)) { throw 'ZIP must contain one package directory' }
 if ($null -eq $root) { $root = $parts[0] }
 if ($root -cne $parts[0]) { throw 'Multiple ZIP roots' }
 if ((($e.ExternalAttributes -shr 16) -band 0xF000) -eq 0xA000) { throw 'ZIP symlink' }
@@ -258,12 +267,16 @@ $relative = $name.Substring($root.Length + 1)
 foreach ($part in $relative.Split('/')) {
   if ($part -eq '' -or $part -match '[<>:"|?*\\]' -or $part.EndsWith('.') -or $part.EndsWith(' ') -or $part -match '^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)') { throw 'Unsafe ZIP name' }
 }
-$allowed = $relative -cmatch '^(CrackdownLauncher\.exe|crackdown\.exe|rexruntime\.dll|rexgpu-xenos\.dll|TracyClient\.dll|game-manifest\.txt|README\.txt|VERSION\.txt)$'
-$allowed = $allowed -or $relative -cmatch '^LICENSES/[^/]+\.txt$'
+$allowed = $relative -cmatch '^LICENSES/[^/]+\.txt$'
+if ($cd1) {
+$allowed = $allowed -or $relative -cmatch '^(CrackdownLauncher\.exe|crackdown\.exe|rexruntime\.dll|rexgpu-xenos\.dll|TracyClient\.dll|game-manifest\.txt|README\.txt|VERSION\.txt)$'
 $allowed = $allowed -or $relative -cmatch '^xui/(Scene|menuHUD_3)\.xpatch$'
 $allowed = $allowed -or $relative -cmatch '^assets/fonts/(Barlow-Regular\.ttf|Barlow-SemiBold\.ttf|BarlowCondensed-SemiBold\.ttf|BarlowCondensed-Bold\.ttf|OFL\.txt)$'
 $allowed = $allowed -or $relative -ceq 'assets/glyphs/LICENSE.txt'
 $allowed = $allowed -or $relative -cmatch '^assets/glyphs/(ps5|xbox_series|keyboard)/[^/]+\.png$'
+} else {
+$allowed = $allowed -or $relative -cmatch '^(crackdown2\.exe|rexruntime\.dll|rexgpu-xenos\.dll|TracyClient\.dll|game-manifest\.txt|README\.txt|VERSION\.txt|setup_game\.py|xiso_extract\.py|stfs_extract\.py|install_dlc\.py)$'
+}
 if (-not $allowed -or $seen.ContainsKey($relative)) { throw "Forbidden or duplicate ZIP file: $relative" }
 $seen[$relative] = $true
 $total += $e.Length
@@ -291,20 +304,20 @@ foreach ($item in $items) {
 }
 }
 #endif
-std::vector<Release> check_releases(bool beta,const std::atomic_bool& cancel) {
+std::vector<Release> check_releases(bool beta,const std::atomic_bool& cancel,const UpdateSource& source) {
 #ifdef _WIN32
-  std::string endpoint="https://api.github.com/repos/"+std::string(release_repository)+"/releases";
+  std::string endpoint="https://api.github.com/repos/"+std::string(source.repository)+"/releases";
   // Stable endpoint first, then fetch history. Beta uses the release list.
   if(!beta) { auto latest=request(endpoint+"/latest",4*1024*1024,cancel); (void)parse_releases(std::string(latest.begin(),latest.end())); }
-  auto bytes=request(endpoint+"?per_page=20",4*1024*1024,cancel); auto releases=parse_releases(std::string(bytes.begin(),bytes.end()));
+  auto bytes=request(endpoint+"?per_page=20",4*1024*1024,cancel); auto releases=parse_releases(std::string(bytes.begin(),bytes.end()),source);
   if(!beta) std::erase_if(releases,[](const auto& r){return r.prerelease;}); return releases;
 #else
-  (void)beta; (void)cancel; fail("Update checks are available on Windows.");
+  (void)beta; (void)cancel; (void)source; fail("Update checks are available on Windows.");
 #endif
 }
-void install_release(const Release& release,const fs::path& package,const std::atomic_bool& cancel) {
+void install_release(const Release& release,const fs::path& package,const std::atomic_bool& cancel,const UpdateSource& source) {
 #ifdef _WIN32
-  auto prefix="https://github.com/"+std::string(release_repository)+"/releases/download/";
+  auto prefix="https://github.com/"+std::string(source.repository)+"/releases/download/";
   if(!release.zip_url.starts_with(prefix)||!release.sha_url.starts_with(prefix)) fail("Release assets do not belong to the configured repository");
   auto scratch=package/("launcher-update-"+std::to_string(GetCurrentProcessId())+"-"+std::to_string(GetTickCount64()));
   if(!fs::create_directory(scratch)) fail("Cannot create update staging directory");
@@ -312,17 +325,38 @@ void install_release(const Release& release,const fs::path& package,const std::a
     auto checksum=request(release.sha_url,8192,cancel); auto bytes=request(release.zip_url,1024ull*1024*1024,cancel);
     auto zip=scratch/"package.zip"; write_bytes(zip,bytes); bytes.clear(); bytes.shrink_to_fit();
     verify_download(zip,std::string(checksum.begin(),checksum.end()));
-    fs::create_directory(scratch/"package"); extract_zip(zip,scratch/"package",cancel);
-    if(cancel) fail("Update cancelled"); replace_staged(package,scratch/"package",[&](size_t){if(cancel) fail("Update cancelled");});
+    fs::create_directory(scratch/"package"); extract_zip(zip,scratch/"package",cancel,source);
+    if(cancel) fail("Update cancelled");
+    auto target=*source.folder?package/source.folder:package;
+    if(*source.folder) { plain_path(package,source.folder); fs::create_directories(target); recover_update(target,source); }
+    replace_staged(target,scratch/"package",[&](size_t){if(cancel) fail("Update cancelled");},source);
+    if(!is_cd1(source)) {
+      // No launcher restart for this package: drop the rollback copy now and remember the release.
+      recover_update(target,source);
+      if(source.version_file) { ConfigTemp tag(target/source.version_file); tag.replace(target/source.version_file,release.tag+"\n"); }
+    }
     std::error_code cleanup_error; fs::remove_all(scratch,cleanup_error);
   } catch(...) { std::error_code ec; fs::remove_all(scratch,ec); throw; }
 #else
-  (void)release; (void)package; (void)cancel; fail("Installing updates is available on Windows.");
+  (void)release; (void)package; (void)cancel; (void)source; fail("Installing updates is available on Windows.");
 #endif
 }
-void rollback_completed_update(const fs::path& package) {
+void rollback_completed_update(const fs::path& package,const UpdateSource& source) {
   auto backup=package/".launcher-update-backup";
-  if(fs::exists(backup/"completed.toml")) { fs::rename(backup/"completed.toml",backup/"journal.toml"); recover_update(package); }
+  if(fs::exists(backup/"completed.toml")) { fs::rename(backup/"completed.toml",backup/"journal.toml"); recover_update(package,source); }
+}
+std::string installed_version(const fs::path& folder,const UpdateSource& source) {
+  auto valid=[](const std::string& tag) { try { (void)version(tag); return tag; } catch(const std::exception&) { return std::string(); } };
+  auto line=[](const fs::path& p) { std::ifstream in(p,std::ios::binary); std::string s; std::getline(in,s);
+    if(s.starts_with("\xEF\xBB\xBF")) s.erase(0,3); while(!s.empty()&&std::isspace(static_cast<unsigned char>(s.back()))) s.pop_back(); return s; };
+  std::error_code ec;
+  if(source.version_file&&fs::is_regular_file(folder/source.version_file,ec)) if(auto tag=valid(line(folder/source.version_file)); !tag.empty()) return tag;
+  if(!fs::is_regular_file(folder/"VERSION.txt",ec)) return {};
+  // "<title> beta 0.5.0" (tag v0.5.0-beta) or "<title> 1.0.0" (tag v1.0.0).
+  auto text=line(folder/"VERSION.txt"); auto space=text.rfind(' ');
+  if(space==text.npos) return {};
+  bool beta=text.substr(0,space).ends_with(" beta");
+  return valid("v"+text.substr(space+1)+(beta?"-beta":""));
 }
 void restart_launcher(const fs::path& package) {
 #ifdef _WIN32
