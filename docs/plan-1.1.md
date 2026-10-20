@@ -20,6 +20,14 @@
      acceleration.
    - The update mapping for 1.0's camera tuning block and PC Settings page (done on `dlc/1.1`; needs a run).
 
+4. **GitHub issues** (Austin, 2026-10-20):
+   - #13: 21:9 in a 2560x1080 window is letterboxed into a ~1680-wide box. Cause: `--aspect_ratio` set a
+     720-line width (1680) but the SDK takes the video mode height from `window_height` when
+     `video_mode_height` holds its default, so the mode became 1680x1080 (14:9). Fix in `host_tuning.cpp`: size
+     the mode from the window height. Fullscreen at 21:9/32:9 still to check.
+   - #16: stuck at ~33 fps on an RTX 5090 when the NVIDIA global profile forces V-Sync; the reporter traced it
+     to an always-on overlay Present blocking the shared GPU queue. Workaround: per-exe profile with V-Sync off.
+
 ## Before release
 
 - Build `dlc/1.1` with the full SDK patch stack (0001-0026) and re-test the disc build (Four-Play) and the update
