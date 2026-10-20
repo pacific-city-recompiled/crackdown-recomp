@@ -11,6 +11,7 @@
 #include <rex/ui/window.h>
 
 #include "ap/bridge.h"
+#include "game_addresses.h"
 #include "host_tuning.h"
 #include "input_replay.h"
 #include "pc_options.h"
@@ -62,7 +63,9 @@ class CrackdownApp : public rex::ReXApp {
           });
         });
     crackdown::PreparePCMenu(runtime(), game_data_root(), cache_root());
+#if !CRACKDOWN_TU  // the AP bridge is not ported to the title update yet
     crackdown::ap::Initialize(user_data_root());
+#endif
     crackdown::SetInputReplayQuit([this] {
       app_context().CallInUIThreadDeferred([this] {
         crackdown::FlushPerfCsvLog();
@@ -74,7 +77,9 @@ class CrackdownApp : public rex::ReXApp {
   // Close button / Alt+F4. The SDK then hard-exits, so flush the perf CSV now.
   bool OnWindowCloseRequested() override {
     crackdown::FlushPerfCsvLog();
+#if !CRACKDOWN_TU  // the AP bridge is not ported to the title update yet
     crackdown::ap::Shutdown();
+#endif
     return true;
   }
 
