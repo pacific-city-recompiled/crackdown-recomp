@@ -138,7 +138,7 @@ int main(int argc,char** argv) {
     scale=static_cast<int>(value<int64_t>(t,"resolution_scale",1));
     fullscreen=value<bool>(t,"fullscreen",true); mute=value<bool>(t,"audio_mute",false);
     auto f=value<std::string>(t,"present_effect","bilinear"); filter=f=="cas"?1:f=="fsr"?2:0;
-    rate=game_sel==0?(value<bool>(t,"vsync",false)?1:0):(value<int64_t>(t,"fps_cap",0)==60?1:0);
+    rate=game_sel==0?(value<bool>(t,"vsync",false)?1:0):(value<int64_t>(t,"fps_cap",0)==30?1:0);
     auto ratio=value<std::string>(t,"aspect_ratio","16:9"); aspect=ratio=="16:10"?1:ratio=="21:9"?2:ratio=="32:9"?3:ratio=="4:3"?4:0;
     auto post=value<std::string>(t,"swap_post_effect","none"); aa=post=="fxaa"?1:post=="fxaa_extreme"?2:0;
     // anisotropic_override: -1 game's own, 2 = 2x, 3 = 4x (SDK default), 4 = 8x, 5 = 16x.
@@ -511,8 +511,8 @@ int main(int argc,char** argv) {
         if(game_sel==0) {
           if(ImGui::Combo("Frame rate",&rate,"60 fps (default)\0" "30 fps (stock)\0")) { changes["vsync"]=rate?std::optional<std::string>("true"):std::nullopt; changes["fps_cap"]=std::nullopt; }
         } else {
-          // Crackdown 2: 30 fps by default (host limiter); 60 needs its measured game clock.
-          if(ImGui::Combo("Frame rate",&rate,"30 fps (default)\0" "60 fps (experimental)\0")) { changes["fps_cap"]=rate?std::optional<std::string>("60"):std::nullopt; changes["sim_game_clock"]=rate?std::optional<std::string>("true"):std::nullopt; changes["vsync"]=std::nullopt; }
+          // Crackdown 2: 60 fps by default (crackdown2.exe sets fps_cap=60 + its measured game clock); 30 = host cap.
+          if(ImGui::Combo("Frame rate",&rate,"60 fps (default)\0" "30 fps (stock)\0")) { changes["fps_cap"]=rate?std::optional<std::string>("30"):std::nullopt; changes["sim_game_clock"]=std::nullopt; changes["vsync"]=std::nullopt; }
         }
         ImGui::TextDisabled("In game: F3 shows the frame rate, F11 switches between fullscreen and a window.");
       }
