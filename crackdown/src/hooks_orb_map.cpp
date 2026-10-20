@@ -187,11 +187,13 @@ void AddOrbMarkers(const PPCContext& ctx, uint8_t* base, uint32_t map) {
               std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count());
 }
 // The map screen keeps the map object at +0x1C and its tab control at +0x70
-// (sub_826243F8 returns the tab). Its tab handlers set every icon's Show
-// with sub_826FAAF8(hObj, show): sub_8263BE88 (tab 2, "Boss Locations")
+// (sub_826243F8 returns the tab). sub_8263A858(screen, force) applies the tab
+// to the icons with sub_8269B820(hObj, show): on tab 2 ("Boss Locations") it
 // hides the supply records (map+0xD4, 0x30 apart) and shows the gang icons
-// (map+0xF4); sub_8263BCD0 (tab 1, "Supply Points") hides the gang icons.
-// Orb markers follow the supply points: hidden on tab 2, shown otherwise.
+// (map+0xE4 / map+0xF4); otherwise the reverse. (sub_826FAAF8, which the tab
+// handlers sub_8263BCD0/sub_8263BE88 also call, did not hide our markers in
+// the PC run of 2026-10-20, log crackdown_009.) Orb markers follow the supply
+// points: hidden on tab 2, shown otherwise.
 void SyncOrbMarkers(const PPCContext& ctx, uint8_t* base, uint32_t screen) {
   const uint32_t map = screen ? REX_LOAD_U32(screen + 0x1C) : 0;
   const auto found = g_markers.find(map);
@@ -208,7 +210,7 @@ void SyncOrbMarkers(const PPCContext& ctx, uint8_t* base, uint32_t screen) {
     call = SideCall(ctx, base);
     call.r3.u64 = REX_LOAD_U32(icon + 4);
     call.r4.u64 = show;
-    sub_826FAAF8(call, base);
+    sub_8269B820(call, base);
   }
 }
 }  // namespace
@@ -221,18 +223,10 @@ REX_HOOK_RAW(sub_826400D8) {
   AddOrbMarkers(ctx, base, map);
 }
 
-REX_HOOK_RAW(sub_8263BCD0) {
+// sub_8263A858 runs when the map screen opens (0x8263A5C8, force) and from
+// its tab-change handler sub_8263A830; it returns nothing.
+REX_HOOK_RAW(sub_8263A858) {
   const uint32_t screen = ctx.r3.u32;
-  __imp__sub_8263BCD0(ctx, base);
-  const auto result = ctx.r3;
+  __imp__sub_8263A858(ctx, base);
   SyncOrbMarkers(ctx, base, screen);
-  ctx.r3 = result;
-}
-
-REX_HOOK_RAW(sub_8263BE88) {
-  const uint32_t screen = ctx.r3.u32;
-  __imp__sub_8263BE88(ctx, base);
-  const auto result = ctx.r3;
-  SyncOrbMarkers(ctx, base, screen);
-  ctx.r3 = result;
 }
