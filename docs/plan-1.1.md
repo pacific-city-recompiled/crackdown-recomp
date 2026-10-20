@@ -27,6 +27,9 @@
      the mode from the window height. Fullscreen at 21:9/32:9 still to check.
    - #16: stuck at ~33 fps on an RTX 5090 when the NVIDIA global profile forces V-Sync; the reporter traced it
      to an always-on overlay Present blocking the shared GPU queue. Workaround: per-exe profile with V-Sync off.
+     Fixed by SDK patch 0027 (wait on the swap chain's frame-latency object before painting). Reproduced on the PC
+     with `--d3d12_present_test_sync_interval=1`: 44.5 fps without the wait, 61.8 with it (62.0 without V-Sync).
+     #13 fix checked windowed at 2560x1080 (mode 2520x1080, frame fills the window).
 
 ## Before release
 
