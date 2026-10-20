@@ -73,6 +73,12 @@ fs::path checked_file(const fs::path& root, const std::string& relative) {
   for (const auto& part : fs::u8path(relative)) { p /= part; no_links(p); }
   return p;
 }
+// $SystemUpdate is a console dashboard update the game never reads. Many dumps leave it out
+// (issue #15), so a folder without it still verifies; one that has it is still checked.
+bool optional_missing(const fs::path& folder, const Entry& e) {
+  if (!lower(e.path).starts_with("$systemupdate/")) return false;
+  std::error_code ec; return !fs::exists(checked_file(folder, e.path), ec);
+}
 }
 std::string utf8(const fs::path& path) { auto s = path.u8string(); return {s.begin(), s.end()}; }
 std::string hash_file(const fs::path& path, const std::atomic_bool* cancel, const std::function<void(uint64_t)>& hashed) {
@@ -167,7 +173,7 @@ std::string Image::xex_hash(const std::atomic_bool* cancel) const {
 std::string verify_folder(const fs::path& folder, const std::vector<Entry>& manifest, const std::atomic_bool* cancel,
                           Check check, Progress progress, const std::string& expected_xex) {
   auto is_xex = [](const Entry& e) { return lower(e.path) == "default.xex"; };
-  auto hashed = [&](const Entry& e) { return !is_xex(e) && (check == Check::full || e.size <= quick_hash_limit); };
+  auto hashed = [&](const Entry& e) { return !is_xex(e) && !optional_missing(folder, e) && (check == Check::full || e.size <= quick_hash_limit); };
   uint64_t total = 0, done = 0;
   for (const auto& e : manifest) if (hashed(e)) {
     if (e.hash.empty()) throw std::runtime_error("The manifest has no hash for " + e.path + "; update game-manifest.txt");
@@ -183,7 +189,8 @@ std::string verify_folder(const fs::path& folder, const std::vector<Entry>& mani
   if (xex.empty()) throw std::runtime_error("Game folder has no default.xex");
   // Sizes first: a missing or truncated file fails in seconds, before any long hashing.
   for (const auto& e : manifest) {
-    check_cancel(cancel); auto p = checked_file(folder,e.path);
+    check_cancel(cancel); if (optional_missing(folder,e)) continue;
+    auto p = checked_file(folder,e.path);
     if (!fs::is_regular_file(p) || fs::file_size(p)!=e.size) throw std::runtime_error("Missing or wrong-sized game file: " + e.path);
   }
   if (progress) progress(0,total);
@@ -202,6 +209,7 @@ std::string folder_stamp(const fs::path& folder, const std::vector<Entry>& manif
   std::ostringstream out;
   out << "crackdown-verified 1\n" << utf8(fs::absolute(folder).lexically_normal()) << '\n' << xex << '\n';
   for (const auto& e : manifest) {
+    if (optional_missing(folder, e)) continue;
     std::error_code ec; auto p = checked_file(folder, e.path);
     auto size = fs::file_size(p, ec); if (ec) return {};
     auto time = fs::last_write_time(p, ec); if (ec) return {};

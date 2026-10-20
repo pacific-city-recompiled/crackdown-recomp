@@ -111,6 +111,16 @@ int main(int argc,char** argv) {
     },xex); } catch(const std::exception& e) { cancellation=e.what(); }
     require(hashing && cancellation=="Cancelled","cancel during hashing"); cancel=false;
     rejects([&]{verify_folder(home/"folder",{{"default.xex",0,4,{}}},nullptr,Check::quick,{},xex);},"supported XEX wrong size");
+    { // $SystemUpdate may be left out of a dump (#15), but a copy that is there is still checked.
+      auto with_update=supported; with_update.push_back({"$SystemUpdate/su.bin",0,3,hash_file(home/"folder/default.xex")});
+      require(verify_folder(home/"folder",with_update,nullptr,Check::full,{},xex)==xex,"missing $SystemUpdate allowed");
+      fs::create_directory(home/"folder/$SystemUpdate"); write(home/"folder/$SystemUpdate/su.bin","xyz");
+      rejects([&]{verify_folder(home/"folder",with_update,nullptr,Check::full,{},xex);},"damaged $SystemUpdate rejected");
+      write(home/"folder/$SystemUpdate/su.bin","abc");
+      require(verify_folder(home/"folder",with_update,nullptr,Check::full,{},xex)==xex,"present $SystemUpdate verified");
+      fs::remove_all(home/"folder/$SystemUpdate");
+      rejects([&]{verify_folder(home/"folder",{{"default.xex",0,3,{}},{"Audio/x.bin",0,3,{}}},nullptr,Check::quick,{},xex);},"other missing files still rejected");
+    }
     { // A matching stamp skips the quick check's hashing; a changed file or a full check hashes again.
       auto stamp=home/"verified-files.txt"; fs::remove(stamp);
       require(verify_folder_cached(home/"folder",supported,stamp,nullptr,Check::quick,{},xex)==xex&&fs::exists(stamp),"stamp written");
