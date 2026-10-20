@@ -285,6 +285,9 @@ int main(int argc,char** argv) {
       auto bad=stfs_fixture(0x4D5307DC,{{"a.txt","abc"}}); bad[0x3000]^=1; save("damaged",bad);
       rejects([&]{install_dlc(home/"damaged",dlc_user,no);},"hash mismatch refused");
       require(!fs::exists(dlc/"00000002"/"damaged") && list_dlc(dlc_user).size()==1,"failed install leaves nothing");
+      require(install_dlc(home/"ffa",dlc_user,no,{},true).title=="Test Pack","title-update pack accepted once the update is in");
+      rejects([&]{install_title_update(home/"other",home/"tu-home",no);},"only Title Update #6 accepted");
+      require(!title_update_installed(home/"tu-home") && !fs::exists(home/"tu-home"/"title-update.partial"),"refused update leaves nothing");
     }
     auto unicode_user=home/fs::path(u8"Documents \u00e9"); create_profile(unicode_user,"Seed#1%");
     auto unicode_args=profile_args(unicode_user,"Seed#1%");
