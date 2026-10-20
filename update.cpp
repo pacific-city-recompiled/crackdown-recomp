@@ -144,7 +144,7 @@ void verify_download(const fs::path& zip,const std::string& checksum) {
 bool update_path_allowed(const std::string& relative) {
   if(relative.empty()||relative.find('\\')!=relative.npos) return false; auto parts=split(relative,'/');
   for(const auto& p:parts) if(!safe_name(p)) return false;
-  if(parts.size()==1) { static const std::set<std::string> names={"CrackdownLauncher.exe","crackdown.exe","rexruntime.dll","rexgpu-xenos.dll","TracyClient.dll","game-manifest.txt","README.txt","VERSION.txt"}; return names.contains(relative); }
+  if(parts.size()==1) { static const std::set<std::string> names={"CrackdownLauncher.exe","crackdown.exe","crackdown_tu.exe","rexruntime.dll","rexgpu-xenos.dll","TracyClient.dll","game-manifest.txt","README.txt","VERSION.txt"}; return names.contains(relative); }
   if(parts.size()==2&&parts[0]=="LICENSES") return parts[1].ends_with(".txt");
   if(parts.size()==2&&parts[0]=="xui") return parts[1]=="Scene.xpatch"||parts[1]=="menuHUD_3.xpatch";
   if(parts.size()==3&&parts[0]=="assets"&&parts[1]=="fonts") { static const std::set<std::string> fonts={"Barlow-Regular.ttf","Barlow-SemiBold.ttf","BarlowCondensed-SemiBold.ttf","BarlowCondensed-Bold.ttf","OFL.txt"}; return fonts.contains(parts[2]); }
@@ -258,7 +258,7 @@ $relative = $name.Substring($root.Length + 1)
 foreach ($part in $relative.Split('/')) {
   if ($part -eq '' -or $part -match '[<>:"|?*\\]' -or $part.EndsWith('.') -or $part.EndsWith(' ') -or $part -match '^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)') { throw 'Unsafe ZIP name' }
 }
-$allowed = $relative -cmatch '^(CrackdownLauncher\.exe|crackdown\.exe|rexruntime\.dll|rexgpu-xenos\.dll|TracyClient\.dll|game-manifest\.txt|README\.txt|VERSION\.txt)$'
+$allowed = $relative -cmatch '^(CrackdownLauncher\.exe|crackdown\.exe|crackdown_tu\.exe|rexruntime\.dll|rexgpu-xenos\.dll|TracyClient\.dll|game-manifest\.txt|README\.txt|VERSION\.txt)$'
 $allowed = $allowed -or $relative -cmatch '^LICENSES/[^/]+\.txt$'
 $allowed = $allowed -or $relative -cmatch '^xui/(Scene|menuHUD_3)\.xpatch$'
 $allowed = $allowed -or $relative -cmatch '^assets/fonts/(Barlow-Regular\.ttf|Barlow-SemiBold\.ttf|BarlowCondensed-SemiBold\.ttf|BarlowCondensed-Bold\.ttf|OFL\.txt)$'
