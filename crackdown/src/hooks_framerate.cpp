@@ -243,7 +243,7 @@ static void PaceFrame() {
 }
 
 // Stores one frame's step everywhere the measured-clock modes put it.
-static void StoreStep(float step) {
+static void StoreStep(float step, uint8_t* base) {
   g_step.store(step, std::memory_order_relaxed);
   if (Sim().anim_step) {
     REX_STORE_U32(kAnimStepAddress, std::bit_cast<uint32_t>(step));
@@ -278,7 +278,7 @@ static void StoreStep(float step) {
 // 1000/60 on average), and the step is that ms count / 1000 like the measured
 // path. A stalled frame (counter paused) repeats the same values, as stock's
 // fixed 33 ms does.
-static void LockstepStep() {
+static void LockstepStep(uint8_t* base) {
   const uint32_t clock = REX_LOAD_U32(kClockPointerAddress);
   uint32_t ms = kLockedFrameMs;  // no clock yet: stock 33 ms, 1/30
   float step = 1.0f / 30.0f;
@@ -288,7 +288,7 @@ static void LockstepStep() {
     step = float(ms) / 1000.0f;
   }
   g_frame_ms.store(ms, std::memory_order_relaxed);
-  StoreStep(step);
+  StoreStep(step, base);
 }
 
 CD_HOOK_RAW(CD_SUB(826A7698, 8272F7C0)) {
@@ -297,7 +297,7 @@ CD_HOOK_RAW(CD_SUB(826A7698, 8272F7C0)) {
   CountFrame();
   const bool game_clock = Sim().game_clock;
   if (game_clock && Sim().lockstep_step) {
-    LockstepStep();
+    LockstepStep(base);
   } else if (Sim().variable_step || game_clock) {
     const Clock::time_point now = Clock::now();
     if (g_last_frame != Clock::time_point{}) {
@@ -310,7 +310,7 @@ CD_HOOK_RAW(CD_SUB(826A7698, 8272F7C0)) {
         g_frame_ms.store(ms, std::memory_order_relaxed);
         step = float(ms) / 1000.0f;
       }
-      StoreStep(step);
+      StoreStep(step, base);
     }
     g_last_frame = now;
   }
