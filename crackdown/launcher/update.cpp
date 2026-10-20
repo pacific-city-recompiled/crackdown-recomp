@@ -153,7 +153,7 @@ bool update_path_allowed(const std::string& relative,const UpdateSource& source)
     if(parts.size()==1) return names.contains(relative);
     return parts.size()==2&&parts[0]=="LICENSES"&&parts[1].ends_with(".txt");
   }
-  if(parts.size()==1) { static const std::set<std::string> names={"CrackdownLauncher.exe","crackdown.exe","rexruntime.dll","rexgpu-xenos.dll","TracyClient.dll","game-manifest.txt","README.txt","VERSION.txt"}; return names.contains(relative); }
+  if(parts.size()==1) { static const std::set<std::string> names={"CrackdownLauncher.exe","crackdown.exe","crackdown_tu.exe","rexruntime.dll","rexgpu-xenos.dll","TracyClient.dll","game-manifest.txt","README.txt","VERSION.txt"}; return names.contains(relative); }
   if(parts.size()==2&&parts[0]=="LICENSES") return parts[1].ends_with(".txt");
   if(parts.size()==2&&parts[0]=="xui") return parts[1]=="Scene.xpatch"||parts[1]=="menuHUD_3.xpatch";
   if(parts.size()==3&&parts[0]=="assets"&&parts[1]=="fonts") { static const std::set<std::string> fonts={"Barlow-Regular.ttf","Barlow-SemiBold.ttf","BarlowCondensed-SemiBold.ttf","BarlowCondensed-Bold.ttf","OFL.txt"}; return fonts.contains(parts[2]); }
@@ -269,7 +269,7 @@ foreach ($part in $relative.Split('/')) {
 }
 $allowed = $relative -cmatch '^LICENSES/[^/]+\.txt$'
 if ($cd1) {
-$allowed = $allowed -or $relative -cmatch '^(CrackdownLauncher\.exe|crackdown\.exe|rexruntime\.dll|rexgpu-xenos\.dll|TracyClient\.dll|game-manifest\.txt|README\.txt|VERSION\.txt)$'
+$allowed = $allowed -or $relative -cmatch '^(CrackdownLauncher\.exe|crackdown\.exe|crackdown_tu\.exe|rexruntime\.dll|rexgpu-xenos\.dll|TracyClient\.dll|game-manifest\.txt|README\.txt|VERSION\.txt)$'
 $allowed = $allowed -or $relative -cmatch '^xui/(Scene|menuHUD_3)\.xpatch$'
 $allowed = $allowed -or $relative -cmatch '^assets/fonts/(Barlow-Regular\.ttf|Barlow-SemiBold\.ttf|BarlowCondensed-SemiBold\.ttf|BarlowCondensed-Bold\.ttf|OFL\.txt)$'
 $allowed = $allowed -or $relative -ceq 'assets/glyphs/LICENSE.txt'

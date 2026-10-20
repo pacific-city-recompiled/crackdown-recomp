@@ -25,9 +25,11 @@ struct Catalog {
   struct Supply { int64_t id; int index; bool starting; std::array<float, 3> position; };
   struct Weapon { int64_t id, item; int native_id, index; bool starting; std::string name; };
   struct Boss { int64_t id; int native_id; bool kingpin; };
+  struct Gang { std::string name; GangProgression progression; };
   std::map<int, Supply> supplies;
   std::map<int, Weapon> weapons;
   std::map<int, Boss> bosses;
+  std::vector<Gang> gangs;  // optional; every boss in exactly one gang, kingpin last
   int64_t filler_item = 0;
   std::set<int64_t> Locations(bool hidden = true) const;
   const OrbEntry* ByOrdinal(uint32_t ordinal) const;

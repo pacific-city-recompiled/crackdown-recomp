@@ -23,6 +23,7 @@ void ValidateItem(const NetworkItem& item, const Contract& contract) {
   for (const auto& [index, skill] : contract.skills) supported |= item.item == skill.item;
   for (const auto& [id, weapon] : contract.weapons) supported |= item.item == weapon.item;
   supported |= contract.filler_item != 0 && item.item == contract.filler_item;
+  for (const auto& gang : contract.gangs) supported |= item.item == gang.item;
   Require(supported && Id(item.location) && item.player >= 0 &&
           item.flags >= 0 && item.flags <= 7, "Unsupported AP item");
 }
@@ -80,6 +81,22 @@ Contract ParseContract(const toml::table& t) {
     c.filler_item = Value<int64_t>(t, "filler_item");
     c.goal = Value<std::string>(t, "goal");
     c.kingpin_locations = ReadIds(t, "kingpin_locations");
+    if (t.contains("gangs")) {
+      auto gangs = t["gangs"].as_array();
+      Require(gangs && gangs->size() <= 3, "Invalid AP gang contract");
+      for (const auto& node : *gangs) {
+        auto g = node.as_table();
+        auto order = g ? (*g)["order"].as_array() : nullptr;
+        Require(order && order->size() <= 21, "Invalid AP gang contract");
+        GangProgression gang{Value<int64_t>(*g, "item"), {}};
+        for (const auto& id : *order) {
+          auto native = id.value<int>();
+          Require(native.has_value(), "Invalid AP gang contract");
+          gang.order.push_back(*native);
+        }
+        c.gangs.push_back(std::move(gang));
+      }
+    }
   }
   return c;
 }
@@ -132,9 +149,16 @@ SessionState::SessionState(std::filesystem::path path, Contract contract)
         !contract_.locations.contains(contract_.filler_item), "Invalid AP filler contract");
     for (auto id : contract_.kingpin_locations)
       Require(contract_.locations.contains(id), "Invalid AP kingpin contract");
+    std::set<int> bosses;
+    for (const auto& gang : contract_.gangs) {
+      Require(Id(gang.item) && items.insert(gang.item).second && !contract_.locations.contains(gang.item) &&
+          !gang.order.empty(), "Invalid AP gang contract");
+      for (int id : gang.order)
+        Require(id >= 0 && id < 21 && bosses.insert(id).second, "Invalid AP gang contract");
+    }
   } else {
     Require(contract_.filler_item == 0 && contract_.goal.empty() &&
-        contract_.kingpin_locations.empty(), "Incomplete M2 contract");
+        contract_.kingpin_locations.empty() && contract_.gangs.empty(), "Incomplete M2 contract");
   }
   if (std::filesystem::exists(path_)) {
     state_ = Decode(ReadFile(path_)); // Corrupt/mismatched state is never silently reset.
@@ -268,6 +292,18 @@ std::optional<bool> SessionState::WeaponTarget(const Binding& active, int id, bo
   return weapon.starting || std::any_of(state_.inventory.begin(), state_.inventory.end(),
       [&](const auto& i) { return i.item == weapon.item; });
 }
+bool SessionState::BossOpen(const Binding& active, int id) const {
+  Verify(active);
+  for (const auto& gang : contract_.gangs) {
+    const auto at = std::find(gang.order.begin(), gang.order.end(), id);
+    if (at == gang.order.end()) continue;
+    if (!state_.inventory_known) return false;
+    const auto count = std::count_if(state_.inventory.begin(), state_.inventory.end(),
+        [&](const auto& i) { return i.item == gang.item; });
+    return at - gang.order.begin() < count;
+  }
+  return true;
+}
 std::string SessionState::Encode(const State& s) const {
   const auto& b = contract_.binding;
   toml::table t{{"format", 2}, {"game", b.game}, {"schema", b.schema},
@@ -290,6 +326,15 @@ std::string SessionState::Encode(const State& s) const {
     t.insert("filler_item", contract_.filler_item);
     t.insert("goal", contract_.goal);
     t.insert("kingpin_locations", Ids(contract_.kingpin_locations));
+    if (!contract_.gangs.empty()) {
+      toml::array gangs;
+      for (const auto& gang : contract_.gangs) {
+        toml::array order;
+        for (int id : gang.order) order.push_back(id);
+        gangs.push_back(toml::table{{"item", gang.item}, {"order", std::move(order)}});
+      }
+      t.insert("gangs", std::move(gangs));
+    }
   }
   if (!contract_.skills.empty()) {
     toml::array skills;

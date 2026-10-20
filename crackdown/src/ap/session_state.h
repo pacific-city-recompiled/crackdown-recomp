@@ -9,6 +9,7 @@
 #include <vector>
 #include "skill_progression.h"
 #include "weapon_progression.h"
+#include "boss_progression.h"
 
 namespace crackdown::ap {
 struct Binding {
@@ -28,6 +29,7 @@ struct Contract {
   int64_t filler_item = 0; // Agency Commendation: permanent no-op
   std::string goal;
   std::set<int64_t> kingpin_locations;
+  std::vector<GangProgression> gangs; // empty unless the slot gates generals
   bool operator==(const Contract&) const = default;
 };
 struct NetworkItem {
@@ -57,6 +59,9 @@ class SessionState {
                                 int native_level, bool gameplay_ready) const;
   bool NeedsResync() const { return resync_; }
   std::optional<bool> WeaponTarget(const Binding&, int native_id, bool ready) const;
+  // Gated generals: whether received gang items open this boss's encounter.
+  // Always open for ungated slots; closed until the inventory is known.
+  bool BossOpen(const Binding&, int native_id) const;
   // Native save lineage. The adapter marks a native save write as pending
   // before the game writes it, then records the written file's SHA-256. A load
   // is bound only when its hash belongs to this lineage. A pending write that a
