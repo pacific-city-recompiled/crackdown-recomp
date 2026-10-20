@@ -60,6 +60,7 @@ REXCVAR_DECLARE(std::string, gpu_plugin);  // SDK rex_app.cpp
 REXCVAR_DECLARE(bool, sim_variable_step);  // hooks_framerate.cpp
 REXCVAR_DECLARE(bool, sim_game_clock);     // hooks_framerate.cpp
 REXCVAR_DECLARE(bool, sim_step_literal);   // hooks_framerate.cpp
+REXCVAR_DECLARE(bool, sim_lockstep_step);  // hooks_framerate.cpp
 
 // Guest 0x82BAA330: s32 frame cap read by the render loop's limiter
 // (sub_826A65F0 / sub_826A7698: Sleep((1000 / cap) - elapsed) when a frame
@@ -339,14 +340,16 @@ void ApplyFpsCap(rex::memory::Memory* memory) {
   if (cap <= 0 || !memory) {
     return;
   }
-  // Above 60 the host paces frames exactly (PaceFrame, hooks_framerate.cpp)
-  // and the guest's whole-ms limiter is moved out of the way.
-  const int32_t guest_cap = cap > 60 ? 1000 : cap;
+  // Above 60, and in co-op's lockstep mode, the host paces frames exactly
+  // (PaceFrame, hooks_framerate.cpp) and the guest's whole-ms limiter is moved
+  // out of the way.
+  const bool host_paced = cap > 60 || REXCVAR_GET(sim_lockstep_step);
+  const int32_t guest_cap = host_paced ? 1000 : cap;
   auto* p = memory->TranslateVirtual<uint8_t*>(kFrameCapAddress);
   const int32_t old_cap = rex::memory::load_and_swap<int32_t>(p);
   rex::memory::store_and_swap<int32_t>(p, guest_cap);
   REXLOG_INFO("fps_cap: guest frame cap {} -> {}{}", old_cap, guest_cap,
-              cap > 60 ? " (host paces " + std::to_string(cap) + " fps)" : std::string());
+              host_paced ? " (host paces " + std::to_string(cap) + " fps)" : std::string());
 }
 
 REXCVAR_DEFINE_STRING(dump_image, "", "Crackdown",
