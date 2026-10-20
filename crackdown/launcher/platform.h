@@ -27,7 +27,8 @@ class GameProcess {
  public:
   ~GameProcess();
   // Arguments are UTF-8 "--name=value" flags, passed without a shell.
-  void start(const fs::path& home, const std::vector<std::string>& args);
+  // program_name: crackdown (disc) or crackdown_tu (title update build), without .exe.
+  void start(const fs::path& home, const std::vector<std::string>& args, const std::string& program_name = "crackdown");
   std::optional<int> poll();
   bool running() const { return active_; }
   double elapsed() const;

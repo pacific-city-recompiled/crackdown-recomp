@@ -108,7 +108,16 @@ std::vector<std::string> local_ipv4_addresses();
 struct DlcPack { std::string file_name, title; };
 std::vector<DlcPack> list_dlc(const fs::path& user);
 // Checks each block's SHA-1, unpacks into a staging folder and then replaces any earlier install.
-DlcPack install_dlc(const fs::path& package, const fs::path& user, const std::atomic_bool& cancel, Progress progress = {});
+// title_update: the title update is installed, so packs that need it (Free-For-All) are accepted.
+DlcPack install_dlc(const fs::path& package, const fs::path& user, const std::atomic_bool& cancel, Progress progress = {},
+                    bool title_update = false);
+// Title Update #6 (Free-For-All Pack, Keys to the City, Street Racing): crackdown_tu.exe is built from it and
+// reads it from <home>/title-update (Default.xexp + Local/<lang>/GameStrings_DLC.str). Only this exact
+// package is accepted. Unpacked through a staging folder; returns the package title.
+inline constexpr char title_update_sha256[] = "3c544a9815aef625e4f79b49998b7a8454a37b52b8854c94568fa1ad7bee28a1";
+bool title_update_installed(const fs::path& home);
+std::string install_title_update(const fs::path& package, const fs::path& home, const std::atomic_bool& cancel,
+                                 Progress progress = {});
 // Keep the launcher API while using the same editor in the game.
 using crackdown::config::read_config;
 using crackdown::config::setting;

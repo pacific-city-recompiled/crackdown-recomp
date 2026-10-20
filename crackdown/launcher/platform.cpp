@@ -130,12 +130,12 @@ GameProcess::~GameProcess() {
   if(handle_) CloseHandle(static_cast<HANDLE>(handle_));
 #endif
 }
-void GameProcess::start(const fs::path& home, const std::vector<std::string>& args) {
+void GameProcess::start(const fs::path& home, const std::vector<std::string>& args, const std::string& program_name) {
   if(active_) throw std::runtime_error("The game is already running");
-  auto exe=home/
 #ifdef _WIN32
-      "crackdown.exe";
-  if(!fs::is_regular_file(exe)) throw std::runtime_error("crackdown.exe is missing next to the launcher");
+  const std::string exe_name=program_name+".exe";
+  auto exe=home/fs::u8path(exe_name);
+  if(!fs::is_regular_file(exe)) throw std::runtime_error(exe_name+" is missing next to the launcher");
   if(handle_) { CloseHandle(static_cast<HANDLE>(handle_)); handle_=nullptr; }
   // Quote embedded quotes and double trailing backslashes for CommandLineToArgvW.
   std::wstring cmd=L"\""+exe.wstring()+L"\"";
@@ -160,10 +160,10 @@ void GameProcess::start(const fs::path& home, const std::vector<std::string>& ar
   FreeEnvironmentStringsW(inherited); environment.push_back(0);
   if(environment.size()==1) environment.push_back(0);
   STARTUPINFOW si{}; si.cb=sizeof(si); PROCESS_INFORMATION pi{};
-  if(!CreateProcessW(exe.c_str(),cmd.data(),nullptr,nullptr,FALSE,CREATE_UNICODE_ENVIRONMENT,environment.data(),home.c_str(),&si,&pi)) throw std::runtime_error("Cannot start crackdown.exe (Windows error "+std::to_string(GetLastError())+")");
+  if(!CreateProcessW(exe.c_str(),cmd.data(),nullptr,nullptr,FALSE,CREATE_UNICODE_ENVIRONMENT,environment.data(),home.c_str(),&si,&pi)) throw std::runtime_error("Cannot start "+exe_name+" (Windows error "+std::to_string(GetLastError())+")");
   CloseHandle(pi.hThread); handle_=pi.hProcess;
 #else
-      "crackdown";
+  auto exe=home/fs::u8path(program_name);
   std::string program=exe.string(); std::vector<std::string> copies=args;
   std::vector<char*> argv{program.data()}; for(auto& a:copies) argv.push_back(a.data()); argv.push_back(nullptr);
   // No shell; change only the child's working directory, preserving the launcher's.

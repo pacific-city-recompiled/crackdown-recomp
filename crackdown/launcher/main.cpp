@@ -19,7 +19,7 @@
 
 using namespace launcher;
 namespace {
-struct Picker { std::mutex mutex; std::optional<fs::path> picked; bool folder=false,dlc=false; bool pending=false; std::string error; };
+struct Picker { std::mutex mutex; std::optional<fs::path> picked; bool folder=false,dlc=false,title_update=false; bool pending=false; std::string error; };
 void SDLCALL picked(void* data,const char* const* files,int) {
   auto& p=*static_cast<Picker*>(data); std::lock_guard lock(p.mutex);
   if(!files) p.error=SDL_GetError(); else if(files[0]) p.picked=fs::u8path(files[0]);
@@ -63,8 +63,20 @@ int main(int argc,char** argv) {
     } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
   }
   if(argc==4 && std::string(argv[1])=="--install-dlc") {
-    try { std::atomic_bool cancel=false; auto pack=install_dlc(fs::u8path(argv[2]),fs::u8path(argv[3]),cancel); std::cout<<"Installed "<<pack.title<<" ("<<pack.file_name<<")\n"; return 0; }
-    catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
+    try {
+      std::atomic_bool cancel=false;
+      const auto exe_home=fs::absolute(fs::u8path(argv[0])).parent_path();
+      auto pack=install_dlc(fs::u8path(argv[2]),fs::u8path(argv[3]),cancel,{},title_update_installed(exe_home));
+      std::cout<<"Installed "<<pack.title<<" ("<<pack.file_name<<")\n"; return 0;
+    } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
+  }
+  if(argc==3 && std::string(argv[1])=="--install-title-update") {
+    try {
+      std::atomic_bool cancel=false;
+      const auto exe_home=fs::absolute(fs::u8path(argv[0])).parent_path();
+      const auto title=install_title_update(fs::u8path(argv[2]),exe_home,cancel);
+      std::cout<<"Installed "<<title<<" in "<<utf8(exe_home/"title-update")<<'\n'; return 0;
+    } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
   }
   bool review=argc==5 && std::string(argv[1])=="--review-ui";
   fs::path review_dir;
@@ -118,6 +130,8 @@ int main(int argc,char** argv) {
   CoopSettings coop; char coop_own[64]{},coop_partner[64]{}; std::string coop_error; std::vector<std::string> coop_addresses;
   fs::path user; bool portable=false; std::vector<std::string> profiles; std::string profile; char new_profile[48]{};
   std::vector<DlcPack> dlc_packs;
+  bool use_title_update=true;
+  auto title_update_ready=[&] { std::error_code ec; return title_update_installed(home) && fs::is_regular_file(home/"crackdown_tu.exe",ec); };
   try {
     auto probe=home/(".launcher-write-"+std::to_string(SDL_GetTicks()));
     if(fs::exists(probe)) throw std::runtime_error("Write probe already exists");
@@ -157,6 +171,7 @@ int main(int argc,char** argv) {
     int lh=std::clamp(static_cast<int>(value<int64_t>(prefs,"launcher_height",int(720*initial_dpi))),600,2160);
     SDL_SetWindowSize(window,lw,lh);
     close_on_play=value<bool>(prefs,"close_on_play",false);
+    use_title_update=value<bool>(prefs,"title_update",true);
     // Portable mode (portable.txt next to the launcher): saves live in userdata/ here, and the
     // game, which sees the same marker next to crackdown.exe, uses it too.
     portable=fs::is_regular_file(home/"portable.txt");
@@ -278,7 +293,9 @@ int main(int argc,char** argv) {
       // The game reads the password from the profile's connection.toml itself.
       if(!profile.empty()) save_ap();
       auto extra=ap_args(profile.empty()?ApConnection{}:ap); args.insert(args.end(),extra.begin(),extra.end());
-      process.start(home,args); error.clear(); crash.clear(); if(close_on_play) quit=true;
+      // The title update build doesn't carry the Archipelago bridge yet: AP profiles play the disc build.
+      const bool tu=use_title_update && title_update_ready() && extra.empty();
+      process.start(home,args,tu?"crackdown_tu":"crackdown"); error.clear(); crash.clear(); if(close_on_play) quit=true;
     } catch(const std::exception& e) { error=e.what(); verified=false; visuals->clear_art(); }
   };
   auto save_profile=[&](const std::string& name) {
@@ -333,12 +350,17 @@ int main(int argc,char** argv) {
       if(!picker.error.empty()) { error=picker.error; picker.error.clear(); }
       if(picker.picked && picker.dlc) {
         // Small packs (Four-Play is 9 MB) unpack in well under a second, so this runs inline.
-        try { std::atomic_bool keep=false; auto pack=install_dlc(*picker.picked,user,keep); dlc_packs=list_dlc(user); report="Installed "+pack.title+". Every save profile can use it."; error.clear(); }
+        try { std::atomic_bool keep=false; auto pack=install_dlc(*picker.picked,user,keep,{},title_update_installed(home)); dlc_packs=list_dlc(user); report="Installed "+pack.title+". Every save profile can use it."; error.clear(); }
         catch(const std::exception& e) { error=e.what(); report.clear(); }
         picker.picked.reset(); picker.dlc=false; focus_page=true;
       }
+      if(picker.picked && picker.title_update) {
+        try { std::atomic_bool keep=false; auto title=install_title_update(*picker.picked,home,keep); report="Installed "+title+". Play now starts the title update build."; error.clear(); }
+        catch(const std::exception& e) { error=e.what(); report.clear(); }
+        picker.picked.reset(); picker.title_update=false; focus_page=true;
+      }
       if(picker.picked) { visuals->clear_art(); begin(*picker.picked,picker.folder?Job::full_check:Job::import_iso); busy=true; picker.picked.reset(); error.clear(); tab=0; focus_page=true; }
-      if(!picker.pending) picker.dlc=false;  // a cancelled DLC pick must not claim the next ISO pick
+      if(!picker.pending) { picker.dlc=false; picker.title_update=false; }  // a cancelled pick must not claim the next ISO pick
     }
     if(busy && task.done) {
       task.thread.join(); busy=false;
@@ -575,7 +597,25 @@ int main(int argc,char** argv) {
         SDL_ShowOpenFileDialog(picked,&picker,window,nullptr,0,nullptr,false);
       }
       ImGui::EndDisabled();
-      ImGui::TextWrapped("Pick a pack from your Xbox 360 content (the file inside 4D5307DC\\00000002). It is unpacked once and every save profile uses it. The Free-For-All Pack (Keys to the City) needs the game's title update, which this port doesn't support yet.");
+      ImGui::TextWrapped("Pick a pack from your Xbox 360 content (the file inside 4D5307DC\\00000002). It is unpacked once and every save profile uses it. The Free-For-All Pack (Keys to the City, Street Racing) needs the title update below.");
+      ImGui::Separator(); ImGui::TextUnformatted("TITLE UPDATE");
+      if(title_update_ready()) {
+        if(ImGui::Checkbox("Play with the title update (Keys to the City, Street Racing)",&use_title_update)) {
+          try { update_config(preferences,{{"title_update",use_title_update?std::nullopt:std::optional<std::string>("false")}}); } catch(const std::exception& e) { error=e.what(); }
+        }
+        ImGui::TextDisabled("Archipelago profiles always play the disc version.");
+      } else if(title_update_installed(home)) {
+        ImGui::TextDisabled("Title update installed, but crackdown_tu.exe is missing next to the launcher.");
+      } else {
+        ImGui::TextDisabled("Not installed.");
+      }
+      ImGui::BeginDisabled(blocked);
+      if(ImGui::Button("Install title update...")) {
+        { std::lock_guard lock(picker.mutex); picker.pending=true; picker.folder=false; picker.title_update=true; }
+        SDL_ShowOpenFileDialog(picked,&picker,window,nullptr,0,nullptr,false);
+      }
+      ImGui::EndDisabled();
+      ImGui::TextWrapped("Crackdown Title Update #6 from your Xbox 360 (TU_16L61US_0000004000000.00000000001G1, in 4D5307DC\\000B0000). Install it before the Free-For-All Pack.");
       if(!report.empty()) ImGui::TextWrapped("%s",report.c_str());
     }
     if(tab==tab_ap) {
