@@ -217,12 +217,14 @@ rex::ui::FrameStats GuestFrameStats() {
 // (host_tuning.cpp) then sets the guest cap to 1000 and this paces frame starts
 // to exactly 1 / fps_cap: sleep to about 1.5 ms before the deadline, then spin.
 // At 60 and below the guest limiter stays in charge (the verified setup).
-// In co-op ApplyGameDefaults clamps fps_cap to 60 (--sim_lockstep_step steps
-// exactly 1/60 s), and this never paces faster than that.
+// --sim_lockstep_step (co-op) steps exactly 1/60 s per frame, so frames must
+// also be exactly 1/60 s apart or game time drifts from real time: the guest
+// limiter's 16 ms sleeps ran 61.5 fps (coop60 soak 2026-10-20, frames-t2.csv),
+// i.e. the game 2.5% fast. So in that mode this paces 60 fps itself, and
+// ApplyFpsCap moves the guest limiter out of the way as above 60.
 static void PaceFrame() {
-  static const int32_t cap = Sim().lockstep_step ? std::min(rex::cvar::Query<int32_t>("fps_cap"), 60)
-                                                 : rex::cvar::Query<int32_t>("fps_cap");
-  if (cap <= 60) return;
+  static const int32_t cap = Sim().lockstep_step ? 60 : rex::cvar::Query<int32_t>("fps_cap");
+  if (cap <= 60 && !Sim().lockstep_step) return;
   static const Clock::duration period = std::chrono::duration_cast<Clock::duration>(
       std::chrono::duration<double>(1.0 / cap));
   static Clock::time_point deadline{};
