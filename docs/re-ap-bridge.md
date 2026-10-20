@@ -115,5 +115,19 @@ leaves it carried but not available (armory entry +9 = 0).
   constructor call only, then restores 0. The held gun gets its row; nothing
   else is unlocked (the deposit check in `82642760` already ran).
 
-Unit tests: `ap_catalog_tests` and `ap_state_tests` (`gangs`). Live run: see
-the 1.0.5 PR.
+Unit tests: `ap_catalog_tests` and `ap_state_tests` (`gangs`).
+
+Live run (Austin's PC, 2026-10-20, local AP 0.6.8 server, single-slot gated
+seed 1005, logs/screens in `out\wt-1.0.5\out\ap-live\`, game window only):
+- Bind, all 3 runs: `ap: native boss gangs 411EB120: 0 1 2 3 4 5 6 411EE100: 7 8 9 10 11 12 13 411F10E0: 14 15 16 17 18 19 20`
+  (catalog grouping confirmed; no mismatch halt).
+- Gate: `--teleport=410.36,4.81,-1381.25` with no gang items logs
+  `ap: boss native_id=0 held back ...`; no minimap marker or execution banner.
+  `/send Agent Progressive Los Muertos` → about 5 s later the boss marker
+  appears and Alvarez attacks. His dossier intro video still plays on arrival
+  while he is held back (cosmetic).
+- Locker: native addweapon Equalizer (id 10, not sent by the seed), deposit at
+  supply point 0 → `ap: locker lists 1 carried locked weapon(s)`; the held
+  gun is listed and selectable, switching to the pistol works, and once no
+  longer carried it is not offered. On the very first open the highlight
+  started one row off (on the EAR50); later opens were correct.
