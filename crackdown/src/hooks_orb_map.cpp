@@ -23,6 +23,7 @@
 
 #include "generated/default/crackdown_init.h"
 
+#include <bit>
 #include <chrono>
 #include <string>
 #include <string_view>
@@ -82,6 +83,47 @@ uint32_t LoadIcon(const PPCContext& ctx, uint8_t* base, std::string_view path) {
   return icon && REX_LOAD_U32(icon + 4) ? icon : 0;
 }
 
+// District view (map+0x144 != 0) shows only the island picked by map+0x140,
+// like the supply points in sub_826400D8 (0x82640598..0x826405E0): the
+// district grid [[0x82DE44F4]+0x104] maps world x/z to a cell
+// (sub_826A4E70, leaf, f1 = x, f2 = z) whose +0x54 is the cell's district,
+// compared with [[0x82DE27F4] + 4 * (slot + 0x24)] for the map's district
+// (slot 5, 4, 6, 2 for 0, 1, 2, 3 at 0x82640400). District 3 also takes
+// cells with no district. Without this, other islands' orbs land far outside
+// the map panel.
+struct DistrictFilter {
+  bool active = false;
+  uint32_t grid = 0, current = 0, index = 0;
+};
+
+DistrictFilter MakeDistrictFilter(uint8_t* base, uint32_t map) {
+  DistrictFilter f;
+  if (!REX_LOAD_U8(map + 0x144)) return f;
+  f.active = true;
+  f.index = REX_LOAD_U32(map + 0x140);
+  const uint32_t slot = f.index == 0 ? 5 : f.index == 1 ? 4 : f.index == 2 ? 6 : 2;
+  const uint32_t districts = REX_LOAD_U32(0x82DE27F4);
+  f.current = districts ? REX_LOAD_U32(districts + 4 * (slot + 0x24)) : 0;
+  const uint32_t world = REX_LOAD_U32(0x82DE44F4);
+  f.grid = world ? REX_LOAD_U32(world + 0x104) : 0;
+  return f;
+}
+
+bool InDistrict(const PPCContext& ctx, uint8_t* base, const DistrictFilter& f, uint32_t pos) {
+  if (!f.active) return true;
+  if (!f.current) return false;
+  uint32_t district = 0;
+  if (f.grid) {
+    auto call = SideCall(ctx, base);
+    call.r3.u64 = f.grid;
+    call.f1.f64 = std::bit_cast<float>(REX_LOAD_U32(pos));
+    call.f2.f64 = std::bit_cast<float>(REX_LOAD_U32(pos + 8));
+    sub_826A4E70(call, base);
+    if (call.r3.u32) district = REX_LOAD_U32(call.r3.u32 + 0x54);
+  }
+  return district == f.current || (f.index == 3 && !district);
+}
+
 void AddOrbMarkers(const PPCContext& ctx, uint8_t* base, uint32_t map) {
   const std::string mode = REXCVAR_GET(map_orb_markers);
   const bool agility = mode == "agility" || mode == "all";
@@ -94,7 +136,8 @@ void AddOrbMarkers(const PPCContext& ctx, uint8_t* base, uint32_t map) {
   const auto started = std::chrono::steady_clock::now();
   std::string agility_icon = REXCVAR_GET(map_orb_icon_agility);
   std::string hidden_icon = REXCVAR_GET(map_orb_icon_hidden);
-  int shown = 0, failed = 0, randomized = 0;
+  const DistrictFilter district = MakeDistrictFilter(base, map);
+  int shown = 0, failed = 0, randomized = 0, elsewhere = 0;
   for (uint32_t i = 0; i < count; ++i) {
     const uint32_t pickup = REX_LOAD_U32(manager + 12 + 4 * i);
     if (!pickup || REX_LOAD_U8(pickup + 288) == 0) continue;  // collected
@@ -104,6 +147,7 @@ void AddOrbMarkers(const PPCContext& ctx, uint8_t* base, uint32_t map) {
       ++randomized;
       if (!*check) continue;
     }
+    if (!InDistrict(ctx, base, district, pickup + 272)) { ++elsewhere; continue; }
     std::string& path = is_hidden ? hidden_icon : agility_icon;
     uint32_t icon = LoadIcon(ctx, base, path);
     if (!icon) {
@@ -125,8 +169,9 @@ void AddOrbMarkers(const PPCContext& ctx, uint8_t* base, uint32_t map) {
     sub_82641510(call, base);
     ++shown;
   }
-  REXLOG_INFO("map orbs: {} marker(s) ({}; district view {}; {}randomized save; {} failed) in {:.1f} ms",
-              shown, mode, REX_LOAD_U8(map + 0x144), randomized ? "" : "no ", failed,
+  REXLOG_INFO("map orbs: {} marker(s) ({}; {}; {} on other islands; {}randomized save; {} failed) in {:.1f} ms",
+              shown, mode, district.active ? "district " + std::to_string(district.index) : std::string("whole map"),
+              elsewhere, randomized ? "" : "no ", failed,
               std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count());
 }
 }  // namespace
