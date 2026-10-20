@@ -27,6 +27,9 @@
 #include <chrono>
 #include <string>
 #include <string_view>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 #include <rex/cvar.h>
 #include <rex/hook.h>
@@ -34,9 +37,10 @@
 
 #include "ap/bridge.h"
 
-REXCVAR_DEFINE_STRING(map_orb_markers, "off", "Crackdown",
-                      "Mark orbs you have not collected on the pause map: off, agility, hidden "
-                      "or all. With a randomized (Archipelago) save, only orbs that are checks")
+REXCVAR_DEFINE_STRING(map_orb_markers, "auto", "Crackdown",
+                      "Mark orbs you have not collected on the pause map: auto (all, on randomized "
+                      "Archipelago saves only), off, agility, hidden or all. On a randomized save "
+                      "only orbs that are checks are marked")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 REXCVAR_DEFINE_STRING(map_orb_icon_agility, "vfs://mapiconorb_agility.xur", "Crackdown",
                       "Map scene used for agility orb markers")
@@ -124,8 +128,13 @@ bool InDistrict(const PPCContext& ctx, uint8_t* base, const DistrictFilter& f, u
   return district == f.current || (f.index == 3 && !district);
 }
 
+// Our icons per map object (game thread only). The map owns and destroys
+// them (list map+0xC0); entries are re-checked against that list before use.
+std::unordered_map<uint32_t, std::vector<uint32_t>> g_markers;
+
 void AddOrbMarkers(const PPCContext& ctx, uint8_t* base, uint32_t map) {
-  const std::string mode = REXCVAR_GET(map_orb_markers);
+  std::string mode = REXCVAR_GET(map_orb_markers);
+  if (mode == "auto") mode = crackdown::ap::OrbIsCheck(0).has_value() ? "all" : "off";
   const bool agility = mode == "agility" || mode == "all";
   const bool hidden = mode == "hidden" || mode == "all";
   if (!agility && !hidden) return;
@@ -137,6 +146,8 @@ void AddOrbMarkers(const PPCContext& ctx, uint8_t* base, uint32_t map) {
   std::string agility_icon = REXCVAR_GET(map_orb_icon_agility);
   std::string hidden_icon = REXCVAR_GET(map_orb_icon_hidden);
   const DistrictFilter district = MakeDistrictFilter(base, map);
+  auto& placed = g_markers[map];
+  placed.clear();
   int shown = 0, failed = 0, randomized = 0, elsewhere = 0;
   for (uint32_t i = 0; i < count; ++i) {
     const uint32_t pickup = REX_LOAD_U32(manager + 12 + 4 * i);
@@ -167,12 +178,38 @@ void AddOrbMarkers(const PPCContext& ctx, uint8_t* base, uint32_t map) {
     call.r5.u64 = pickup + 272;
     call.r6.u64 = heading;
     sub_82641510(call, base);
+    placed.push_back(icon);
     ++shown;
   }
   REXLOG_INFO("map orbs: {} marker(s) ({}; {}; {} on other islands; {}randomized save; {} failed) in {:.1f} ms",
               shown, mode, district.active ? "district " + std::to_string(district.index) : std::string("whole map"),
               elsewhere, randomized ? "" : "no ", failed,
               std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count());
+}
+// The map screen keeps the map object at +0x1C and its tab control at +0x70
+// (sub_826243F8 returns the tab). Its tab handlers set every icon's Show
+// with sub_826FAAF8(hObj, show): sub_8263BE88 (tab 2, "Boss Locations")
+// hides the supply records (map+0xD4, 0x30 apart) and shows the gang icons
+// (map+0xF4); sub_8263BCD0 (tab 1, "Supply Points") hides the gang icons.
+// Orb markers follow the supply points: hidden on tab 2, shown otherwise.
+void SyncOrbMarkers(const PPCContext& ctx, uint8_t* base, uint32_t screen) {
+  const uint32_t map = screen ? REX_LOAD_U32(screen + 0x1C) : 0;
+  const auto found = g_markers.find(map);
+  if (found == g_markers.end() || found->second.empty() || REX_LOAD_U32(map) != kMapVtable) return;
+  auto call = SideCall(ctx, base);
+  call.r3.u64 = REX_LOAD_U32(screen + 0x70);
+  sub_826243F8(call, base);
+  const bool show = call.r3.u32 != 2;
+  std::unordered_set<uint32_t> live;
+  for (uint32_t it = REX_LOAD_U32(map + 0xC4), end = REX_LOAD_U32(map + 0xC8); it && it < end; it += 4)
+    live.insert(REX_LOAD_U32(it));
+  for (const uint32_t icon : found->second) {
+    if (!live.contains(icon)) continue;
+    call = SideCall(ctx, base);
+    call.r3.u64 = REX_LOAD_U32(icon + 4);
+    call.r4.u64 = show;
+    sub_826FAAF8(call, base);
+  }
 }
 }  // namespace
 
@@ -182,4 +219,20 @@ REX_HOOK_RAW(sub_826400D8) {
   const uint32_t map = ctx.r3.u32;
   __imp__sub_826400D8(ctx, base);
   AddOrbMarkers(ctx, base, map);
+}
+
+REX_HOOK_RAW(sub_8263BCD0) {
+  const uint32_t screen = ctx.r3.u32;
+  __imp__sub_8263BCD0(ctx, base);
+  const auto result = ctx.r3;
+  SyncOrbMarkers(ctx, base, screen);
+  ctx.r3 = result;
+}
+
+REX_HOOK_RAW(sub_8263BE88) {
+  const uint32_t screen = ctx.r3.u32;
+  __imp__sub_8263BE88(ctx, base);
+  const auto result = ctx.r3;
+  SyncOrbMarkers(ctx, base, screen);
+  ctx.r3 = result;
 }

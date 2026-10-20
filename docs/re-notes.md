@@ -448,3 +448,17 @@ scale settings and CLI overrides remain intact and can override preset semantics
 Literal English options labels have no existing options.xus; future locale paths
 are listed in pc-options.md. Footer hints are hidden; XuiBackButton has visible
 Back text for mouse use, retaining the native controller PressKey 22593.
+
+## Pause map orb markers (2026-10-20)
+
+`crackdown/src/hooks_orb_map.cpp`, cvar `--map_orb_markers` (auto/off/agility/hidden/all; auto = all on a bound Archipelago save, else off), launcher GAMEPLAY tab. Icons are our own (`tools/xui/orb_icons.py`), added to the patched Scene.xzp. Static evidence is disassembly of the disc image (`out/ap-discovery/guest-image.bin`); PC runs 2026-10-20 in `out\wt-orbmap` (logs crackdown_002-007, screenshots `out\orbmap-shots\`).
+
+| Address | What | Evidence | Status |
+|---|---|---|---|
+| 0x826400D8 | Map screen object (XUIFE_S_M_cMap, vtable 0x820E6160) constructor: supply points, gang icons, players (sub_82640D20). +0x140 district index, +0x144 district view flag, +0xC0 icon list (destroyed by sub_82640A50), +0xD0 supply records, +0xF0 gang icons. **Hooked** after the native body to add orb icons | disassembly; PC run: 800 markers on a fresh save (crackdown_002) | confirmed |
+| 0x82692D20 / 0x8213BF98 / 0x8213BFF8 | Load a `vfs://` XUR icon scene (returns a wrapper, +4 = hObj) / wide-string ctor / dtor | disassembly; PC run: 0 failed loads | confirmed |
+| 0x82641510 | Place an icon at a world position (x/z at pos+0/+8, heading float*): world-to-map transform 0x826412E8, adds the hObj under map+8 and to map+0xC0 | disassembly; PC run: markers on the orb spots, collected orb 178 gone on reopen (crackdown_006) | confirmed |
+| 0x826A4E70 | District grid lookup (leaf; r3 = [[0x82DE44F4]+0x104], f1 = x, f2 = z) -> cell, +0x54 = district; the supply-point district filter at 0x82640598 | disassembly; PC run: Agency 18 / big island 311 markers, none outside the panel (crackdown_004, 006) | confirmed |
+| 0x8263BCD0 / 0x8263BE88 | Map screen tab handlers (map at screen+0x1C, tab via sub_826243F8(screen+0x70)): tab 2 "Boss Locations" hides supply records and shows gang icons with sub_826FAAF8(hObj, show). **Hooked**: orb markers hidden on tab 2 | disassembly | unconfirmed (disassembly) |
+
+- Randomizer note: the same placement path can mark other things on the map (supply points, stunt rings) from a hook on 0x826400D8.

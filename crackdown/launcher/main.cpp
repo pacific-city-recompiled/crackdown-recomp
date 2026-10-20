@@ -108,6 +108,7 @@ int main(int argc,char** argv) {
   Changes changes; int scale=1,window_size=0,rate=0,aa=0,aniso=2,aspect=0; [[maybe_unused]] int filter=0; bool fullscreen=true,mute=false;
   float mouse_sens=1.0f;
   float camera_speed=1.0f;
+  int orb_markers=0;
   bool skip_intro=true,mnk=false,auto_updates=false,beta_channel=false,ask_updates=false;
   int monitor=0,language=1,tab=0; bool focus_page=true; std::string device="keyboard",input_backend="sdl";
   fs::file_time_type log_since{};
@@ -140,6 +141,7 @@ int main(int argc,char** argv) {
     coop=load_coop(t);
     std::snprintf(coop_own,sizeof(coop_own),"%s",coop.own_address.c_str()); std::snprintf(coop_partner,sizeof(coop_partner),"%s",coop.partner_address.c_str());
     camera_speed=std::clamp(static_cast<float>(value<double>(t,"camera_sensitivity",1.0)),0.25f,4.0f);
+    auto orbs=value<std::string>(t,"map_orb_markers","auto"); orb_markers=orbs=="off"?1:orbs=="agility"?2:orbs=="hidden"?3:orbs=="all"?4:0;
     input_backend=value<std::string>(t,"input_backend","sdl"); monitor=std::clamp(static_cast<int>(value<int64_t>(t,"monitor",0)),0,16);
   } catch(const std::exception& e) { error=e.what(); }
   coop_addresses=local_ipv4_addresses();
@@ -460,6 +462,8 @@ int main(int argc,char** argv) {
         ImGui::TextDisabled("Takes effect on the next Play. The disc may not include every language.");
         if(ImGui::Checkbox("Skip intro logos",&skip_intro)) changes["skip_intro_videos"]=skip_intro?std::nullopt:std::optional<std::string>("false");
         if(ImGui::Checkbox("Mute audio",&mute)) changes["audio_mute"]=mute?std::optional<std::string>("true"):std::nullopt;
+        if(ImGui::Combo("Orb markers on the map",&orb_markers,"On Archipelago saves (default)\0Off\0Agility orbs\0Hidden orbs\0All orbs\0")) { const char* values[]={nullptr,"off","agility","hidden","all"}; changes["map_orb_markers"]=values[orb_markers]?std::optional<std::string>(toml_string(values[orb_markers])):std::nullopt; }
+        ImGui::TextDisabled("Marks orbs you haven't collected on the pause map. On an Archipelago save, only orbs that are checks.");
         if(ImGui::Checkbox("Close launcher after Play",&close_on_play)) {
           try { update_config(preferences,{{"close_on_play",close_on_play?std::optional<std::string>("true"):std::nullopt}}); } catch(const std::exception& e) { error=e.what(); }
         }
