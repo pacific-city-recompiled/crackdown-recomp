@@ -19,6 +19,7 @@ set(CRACKDOWN_SOURCES
     src/hooks_sleep.cpp
     src/hooks_intro.cpp
     src/hooks_camera.cpp
+    src/hooks_orb_map.cpp
     src/xui_patch.cpp
     src/hooks_pc_options.cpp
     src/pc_settings.cpp

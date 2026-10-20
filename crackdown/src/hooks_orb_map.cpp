@@ -1,0 +1,126 @@
+// Orb markers on the pause-menu map (--map_orb_markers).
+//
+// The map screen XUIFE_S_M_cMap is built by its constructor sub_826400D8
+// (vtable 0x820E6160). Every icon on it is a small XUR scene:
+//   sub_8213BF98(str, L"vfs://...xur")  wide-string object (0x20 bytes, SSO)
+//   sub_82692D20(str) -> icon           loads the scene; icon+4 is the hObj
+//   sub_8213BFF8(str, 1, 0)             string destructor
+// The player icon (sub_82640D20, "vfs://mapiconplayer.xur") is then placed
+// with sub_82641510(map, icon, &world_pos, &heading): world x/z (pos+0/+8)
+// go through the map's world-to-map transform sub_826412E8 (main and
+// district views both), the hObj becomes a child of the map scene, and the
+// icon is kept in the map's icon list map+0xC0, which the destructor
+// sub_82640A50 walks to destroy every icon. We add one icon per orb the same
+// way, after the native constructor has finished.
+//
+// Orbs (docs/re-discovery-randomizer.md): pickup manager [0x82DE3F34],
+// pointers at +12, count at +4012; pickup +264 type (0-3 agility, 4 hidden),
+// +272/+276/+280 world x/y/z, +288 = 1 while player 0 has not collected it.
+//
+// Disc XEX addresses. The title-update build keeps per-version addresses in
+// game_addresses.h on its own branch; map these there when this lands on it.
+
+#include "generated/default/crackdown_init.h"
+
+#include <chrono>
+#include <string>
+#include <string_view>
+
+#include <rex/cvar.h>
+#include <rex/hook.h>
+#include <rex/logging/macros.h>
+
+#include "ap/bridge.h"
+
+REXCVAR_DEFINE_STRING(map_orb_markers, "off", "Crackdown",
+                      "Mark orbs you have not collected on the pause map: off, agility, hidden "
+                      "or all. With a randomized (Archipelago) save, only orbs that are checks")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+REXCVAR_DEFINE_STRING(map_orb_icon_agility, "vfs://XUI_MainMap_SupplyPoint_Locked.xur", "Crackdown",
+                      "Map scene used for agility orb markers")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+REXCVAR_DEFINE_STRING(map_orb_icon_hidden, "vfs://XUI_MainMap_SupplyPoint_Unlocked.xur", "Crackdown",
+                      "Map scene used for hidden orb markers")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+namespace {
+constexpr uint32_t kPickupManagerGlobal = 0x82DE3F34;
+constexpr uint32_t kMapVtable = 0x820E6160;
+
+PPCContext SideCall(const PPCContext& parent, uint8_t* base) {
+  PPCContext call = parent;
+  call.r1.u32 -= 256;
+  REX_STORE_U32(call.r1.u32, parent.r1.u32);
+  return call;
+}
+
+// Loads one icon scene; 0 when the scene or its hObj is missing.
+uint32_t LoadIcon(const PPCContext& ctx, uint8_t* base, std::string_view path) {
+  auto call = SideCall(ctx, base);
+  const uint32_t text = call.r1.u32 + 0x60;  // up to 0x60 bytes: 47 UTF-16 units
+  const uint32_t str = call.r1.u32 + 0xC0;   // 0x20-byte string object
+  if (path.empty() || path.size() > 47) return 0;
+  for (size_t i = 0; i <= path.size(); ++i)
+    REX_STORE_U16(text + static_cast<uint32_t>(2 * i), i == path.size() ? 0 : static_cast<uint8_t>(path[i]));
+  call.r3.u64 = str;
+  call.r4.u64 = text;
+  sub_8213BF98(call, base);
+  call = SideCall(ctx, base);
+  call.r3.u64 = str;
+  sub_82692D20(call, base);
+  const uint32_t icon = call.r3.u32;
+  call = SideCall(ctx, base);
+  call.r3.u64 = str;
+  call.r4.s64 = 1;
+  call.r5.s64 = 0;
+  sub_8213BFF8(call, base);
+  return icon && REX_LOAD_U32(icon + 4) ? icon : 0;
+}
+
+void AddOrbMarkers(const PPCContext& ctx, uint8_t* base, uint32_t map) {
+  const std::string mode = REXCVAR_GET(map_orb_markers);
+  const bool agility = mode == "agility" || mode == "all";
+  const bool hidden = mode == "hidden" || mode == "all";
+  if (!agility && !hidden) return;
+  if (!map || REX_LOAD_U32(map) != kMapVtable) return;
+  const uint32_t manager = REX_LOAD_U32(kPickupManagerGlobal);
+  const uint32_t count = manager ? REX_LOAD_U32(manager + 4012) : 0;
+  if (!count || count > 1000) return;
+  const auto started = std::chrono::steady_clock::now();
+  const std::string agility_icon = REXCVAR_GET(map_orb_icon_agility);
+  const std::string hidden_icon = REXCVAR_GET(map_orb_icon_hidden);
+  int shown = 0, failed = 0, randomized = 0;
+  for (uint32_t i = 0; i < count; ++i) {
+    const uint32_t pickup = REX_LOAD_U32(manager + 12 + 4 * i);
+    if (!pickup || REX_LOAD_U8(pickup + 288) == 0) continue;  // collected
+    const bool is_hidden = REX_LOAD_U32(pickup + 264) == 4;
+    if (is_hidden ? !hidden : !agility) continue;
+    if (const auto check = crackdown::ap::OrbIsCheck(i)) {
+      ++randomized;
+      if (!*check) continue;
+    }
+    const uint32_t icon = LoadIcon(ctx, base, is_hidden ? hidden_icon : agility_icon);
+    if (!icon) { ++failed; continue; }
+    auto call = SideCall(ctx, base);
+    const uint32_t heading = call.r1.u32 + 0xE0;
+    REX_STORE_U32(heading, 0);  // 0.0f
+    call.r3.u64 = map;
+    call.r4.u64 = icon;
+    call.r5.u64 = pickup + 272;
+    call.r6.u64 = heading;
+    sub_82641510(call, base);
+    ++shown;
+  }
+  REXLOG_INFO("map orbs: {} marker(s) ({}; district view {}; {}randomized save; {} failed) in {:.1f} ms",
+              shown, mode, REX_LOAD_U8(map + 0x144), randomized ? "" : "no ", failed,
+              std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count());
+}
+}  // namespace
+
+// sub_826400D8 ends "mr r3,r31" (the map) after placing supply points, gang
+// icons and players (sub_82640D20 at 0x826409A8 / 0x826409CC).
+REX_HOOK_RAW(sub_826400D8) {
+  const uint32_t map = ctx.r3.u32;
+  __imp__sub_826400D8(ctx, base);
+  AddOrbMarkers(ctx, base, map);
+}

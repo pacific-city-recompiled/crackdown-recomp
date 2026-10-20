@@ -811,6 +811,13 @@ void OnFrame(PPCContext& ctx, uint8_t* base) {
   ProbeNativeAdapters(ctx, base);
 }
 
+std::optional<bool> OrbIsCheck(uint32_t ordinal) {
+  std::lock_guard lock(g_mutex);
+  if (!g.enabled || !g.catalog || !SaveIsBound()) return std::nullopt;
+  const auto* orb = g.catalog->ByOrdinal(ordinal);
+  return orb && g.session->contract().locations.contains(orb->id);
+}
+
 bool SuppressXP(uint32_t skillset, uint8_t* base) {
   std::lock_guard lock(g_mutex);
   if (!g.enabled || !SaveIsBound()) return false;

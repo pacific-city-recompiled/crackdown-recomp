@@ -2,6 +2,7 @@
 #pragma once
 #include <cstdint>
 #include <filesystem>
+#include <optional>
 
 struct PPCContext;
 
@@ -16,5 +17,8 @@ bool SuppressXP(uint32_t skillset, uint8_t* base);
 void OnSupplyCaptured(uint32_t player, uint32_t index, uint32_t caller, bool changed, uint8_t* base);
 // Runs the whole native deposit body with AP armory availability isolated.
 bool HandleWeaponDeposit(PPCContext& ctx, uint8_t* base);
+// Pause-map orb markers: nullopt while no randomized save is bound, else
+// whether the orb at this pickup-manager ordinal is a check in this seed.
+std::optional<bool> OrbIsCheck(uint32_t ordinal);
 void ProbeNativeAdapters(PPCContext& ctx, uint8_t* base); // explicitly opt-in diagnostics
 }  // namespace crackdown::ap
