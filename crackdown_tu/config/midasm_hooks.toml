@@ -100,9 +100,11 @@ name = "CrackdownCoopHdd_8265ADE4"
 registers = ["r11"]
 after_instruction = true
 
-# Co-op HDD gate (disc 0x82661C54; same `lbz r11,...` of the HDD flag)
+# Co-op HDD gate (disc 0x82661C54): `lis r11,-32024; lbz r11,-19387(r11)` at
+# loc_826DBAE8, the no-HDD popup check before "Host A Game" (0x826DBACC was the
+# switch dispatch above it, so no hook was emitted; coop60 TU run 2026-10-20)
 [[midasm_hook]]
-address = 0x826DBACC
+address = 0x826DBAEC
 name = "CrackdownCoopHdd_82661C54"
 registers = ["r11"]
 after_instruction = true
