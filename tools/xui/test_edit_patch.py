@@ -441,8 +441,14 @@ class RecipeTests(unittest.TestCase):
     def test_package_recipe_and_hash_gate(self):
         original = xzp.build([('menuHud_3.xur',menu_fixture()), ('DisplayOptions.xur',display_fixture())])
         result = mod_menus.modify_package(original)
-        self.assertEqual(mod_menus.validate_package(result)['scenes'], 3)
+        self.assertEqual(mod_menus.validate_package(result)['scenes'], 5)
         entries = {e.name: e.data for e in xzp.parse(result)}
+        for kind in ('agility', 'hidden'):
+            scene = xur.parse(entries[f'mapiconorb_{kind}.xur'])
+            self.assertTrue(scene.fully_parsed)
+            image = edit.find(scene.root, 'map icon/orb')
+            self.assertEqual(edit.property_value(image, 'ImagePath'), f'mapiconorb_{kind}.png')
+            self.assertTrue(entries[f'mapiconorb_{kind}.png'].startswith(b'\x89PNG'))
         self.assertEqual(entries['menuHud_3.xur'], menu_fixture())
         self.assertEqual(entries['DisplayOptions.xur'], display_fixture())
         edit.find(xur.parse(entries['options.xur']).root, 'options')

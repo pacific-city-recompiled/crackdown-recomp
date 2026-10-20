@@ -11,7 +11,8 @@
 // district views both), the hObj becomes a child of the map scene, and the
 // icon is kept in the map's icon list map+0xC0, which the destructor
 // sub_82640A50 walks to destroy every icon. We add one icon per orb the same
-// way, after the native constructor has finished.
+// way, after the native constructor has finished. The orb scenes and images
+// are drawn by tools/xui/orb_icons.py and added to the patched Scene.xzp.
 //
 // Orbs (docs/re-discovery-randomizer.md): pickup manager [0x82DE3F34],
 // pointers at +12, count at +4012; pickup +264 type (0-3 agility, 4 hidden),
@@ -36,16 +37,20 @@ REXCVAR_DEFINE_STRING(map_orb_markers, "off", "Crackdown",
                       "Mark orbs you have not collected on the pause map: off, agility, hidden "
                       "or all. With a randomized (Archipelago) save, only orbs that are checks")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
-REXCVAR_DEFINE_STRING(map_orb_icon_agility, "vfs://XUI_MainMap_SupplyPoint_Locked.xur", "Crackdown",
+REXCVAR_DEFINE_STRING(map_orb_icon_agility, "vfs://mapiconorb_agility.xur", "Crackdown",
                       "Map scene used for agility orb markers")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
-REXCVAR_DEFINE_STRING(map_orb_icon_hidden, "vfs://XUI_MainMap_SupplyPoint_Unlocked.xur", "Crackdown",
+REXCVAR_DEFINE_STRING(map_orb_icon_hidden, "vfs://mapiconorb_hidden.xur", "Crackdown",
                       "Map scene used for hidden orb markers")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
 namespace {
 constexpr uint32_t kPickupManagerGlobal = 0x82DE3F34;
 constexpr uint32_t kMapVtable = 0x820E6160;
+// The orb scenes live in the patched Scene.xzp (tools/xui/orb_icons.py); with
+// --pc_menu_mod=false they are missing and the supply-point icons stand in.
+constexpr std::string_view kFallbackAgility = "vfs://XUI_MainMap_SupplyPoint_Locked.xur";
+constexpr std::string_view kFallbackHidden = "vfs://XUI_MainMap_SupplyPoint_Unlocked.xur";
 
 PPCContext SideCall(const PPCContext& parent, uint8_t* base) {
   PPCContext call = parent;
@@ -87,8 +92,8 @@ void AddOrbMarkers(const PPCContext& ctx, uint8_t* base, uint32_t map) {
   const uint32_t count = manager ? REX_LOAD_U32(manager + 4012) : 0;
   if (!count || count > 1000) return;
   const auto started = std::chrono::steady_clock::now();
-  const std::string agility_icon = REXCVAR_GET(map_orb_icon_agility);
-  const std::string hidden_icon = REXCVAR_GET(map_orb_icon_hidden);
+  std::string agility_icon = REXCVAR_GET(map_orb_icon_agility);
+  std::string hidden_icon = REXCVAR_GET(map_orb_icon_hidden);
   int shown = 0, failed = 0, randomized = 0;
   for (uint32_t i = 0; i < count; ++i) {
     const uint32_t pickup = REX_LOAD_U32(manager + 12 + 4 * i);
@@ -99,7 +104,16 @@ void AddOrbMarkers(const PPCContext& ctx, uint8_t* base, uint32_t map) {
       ++randomized;
       if (!*check) continue;
     }
-    const uint32_t icon = LoadIcon(ctx, base, is_hidden ? hidden_icon : agility_icon);
+    std::string& path = is_hidden ? hidden_icon : agility_icon;
+    uint32_t icon = LoadIcon(ctx, base, path);
+    if (!icon) {
+      const auto fallback = is_hidden ? kFallbackHidden : kFallbackAgility;
+      if (path != fallback) {
+        REXLOG_WARN("map orbs: cannot load {}; using {}", path, fallback);
+        path = fallback;
+        icon = LoadIcon(ctx, base, path);
+      }
+    }
     if (!icon) { ++failed; continue; }
     auto call = SideCall(ctx, base);
     const uint32_t heading = call.r1.u32 + 0xE0;

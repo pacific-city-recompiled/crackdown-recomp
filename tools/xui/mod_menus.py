@@ -13,10 +13,10 @@ import subprocess
 import sys
 
 if __package__:
-    from . import edit, xpatch, xur, xus, xzp
+    from . import edit, orb_icons, xpatch, xur, xus, xzp
 else:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-    from tools.xui import edit, xpatch, xur, xus, xzp
+    from tools.xui import edit, orb_icons, xpatch, xur, xus, xzp
 
 REPO = Path(__file__).resolve().parents[2]
 MANIFEST_SOURCE = 'HEAD:tools/game-manifest.txt'
@@ -326,6 +326,12 @@ def modify_package(original, standalone=False):
         raise ValueError('unexpected standalone menu package')
     if not standalone and not added:
         raise ValueError('package has no DisplayOptions scene/localization')
+    if not standalone:
+        # Pause-map orb markers (crackdown/src/hooks_orb_map.cpp), drawn here.
+        icons = [xzp.Entry(name, data) for name, data in orb_icons.entries()]
+        if any(e.name in existing_names for e in icons):
+            raise ValueError('orb marker scene/image already exists')
+        added += icons
     return xzp.build(modified+added)
 
 
