@@ -1,3 +1,4 @@
+#include "games.h"
 #include "v2.h"
 #include <algorithm>
 #include <chrono>
@@ -81,10 +82,37 @@ void staged(const fs::path& home) {
   fs::create_directory(backup); write(backup/"unrelated","preserve"); rejects([&]{recover_update(package);},"unmarked update backup rejected"); require(text(backup/"unrelated")=="preserve","unmarked backup retained"); fs::remove_all(backup);
   std::error_code ec; fs::create_directory_symlink(home,stage/"link",ec); if(!ec) { rejects([&]{replace_staged(package,stage);},"linked stage rejected"); fs::remove(stage/"link"); }
 }
+// Crackdown 2 updates from its own repository into cd2/, with its own package allowlist and no launcher restart.
+void cd2(const fs::path& home) {
+  require(game_index("cd2")==1&&game_index("crackdown2")==1&&game_index("cd1")==0&&game_index("other")==0,"game ids and Archipelago client names");
+  require(kGames[1].archipelago&&kGames[1].dlc&&!kGames[1].coop,"Crackdown 2 features");
+  auto json=R"([{"tag_name":"v0.5.0-beta","prerelease":true,"assets":[{"name":"Crackdown2Recomp-beta0.5.0.zip","browser_download_url":"https://github.com/Unowa001/Crackdown-2-Recomp/releases/download/v0.5.0-beta/Crackdown2Recomp-beta0.5.0.zip"},{"name":"Crackdown2Recomp-beta0.5.0.zip.sha256","browser_download_url":"https://github.com/Unowa001/Crackdown-2-Recomp/releases/download/v0.5.0-beta/Crackdown2Recomp-beta0.5.0.zip.sha256"}]}])";
+  auto r=parse_releases(json,cd2_updates); require(r.size()==1&&r[0].prerelease&&r[0].zip_url.ends_with("Crackdown2Recomp-beta0.5.0.zip"),"Crackdown 2 package asset");
+  require(parse_releases(json)[0].zip_url.empty(),"Crackdown 1 ignores Crackdown 2 packages");
+  for(const auto& name:{"crackdown2.exe","rexgpu-xenos.dll","game-manifest.txt","setup_game.py","LICENSES/ReXGlue-and-Xenia.txt"}) require(update_path_allowed(name,cd2_updates),"Crackdown 2 package file");
+  for(const auto& name:{"CrackdownLauncher.exe","crackdown.exe","crackdown2.toml","game/default.xex","tu/default.xexp","xui/Scene.xpatch","release.txt","portable.txt"}) require(!update_path_allowed(name,cd2_updates),"Crackdown 2 forbidden file");
+  require(!update_path_allowed("crackdown2.exe"),"Crackdown 1 rejects Crackdown 2 files");
+  auto folder=home/"package/cd2",stage=home/"cd2-staged"; fs::create_directories(folder); fs::create_directories(stage);
+  require(installed_version(folder,cd2_updates).empty(),"nothing installed");
+  write(folder/"crackdown2.exe","old"); write(folder/"crackdown2.toml","settings"); write(folder/"game/default.xex","disc"); write(folder/"tu/default.xexp","update");
+  write(folder/"VERSION.txt","\xEF\xBB\xBF" "Crackdown 2 Recomp beta 0.4.0\r\nRepo: x\r\n"); require(installed_version(folder,cd2_updates)=="v0.4.0-beta","VERSION.txt beta version");
+  write(folder/"VERSION.txt","Crackdown 2 Recomp 1.0.0\n"); require(installed_version(folder,cd2_updates)=="v1.0.0","VERSION.txt release version");
+  write(folder/"release.txt","v0.5.0-beta\n"); require(installed_version(folder,cd2_updates)=="v0.5.0-beta","launcher-written release tag wins");
+  for(const auto& name:{"crackdown2.exe","rexruntime.dll","rexgpu-xenos.dll"}) write(stage/name,"new");
+  rejects([&]{replace_staged(folder,stage,{},cd2_updates);},"Crackdown 2 package without manifest rejected");
+  write(stage/"game-manifest.txt","manifest"); write(stage/"setup_game.py","script");
+  rejects([&]{replace_staged(folder,stage);},"Crackdown 2 package rejected as a Crackdown 1 update");
+  replace_staged(folder,stage,{},cd2_updates); require(text(folder/"crackdown2.exe")=="new"&&text(folder/"game-manifest.txt")=="manifest","Crackdown 2 installed");
+  require(!fs::exists(folder/"CrackdownLauncher.old.exe"),"no launcher rename in cd2");
+  recover_update(folder,cd2_updates); require(!fs::exists(folder/".launcher-update-backup"),"Crackdown 2 backup finalized");
+  require(text(folder/"crackdown2.toml")=="settings"&&text(folder/"game/default.xex")=="disc"&&text(folder/"tu/default.xexp")=="update","Crackdown 2 game files and settings untouched");
+  write(stage/"crackdown2.exe","newer"); rejects([&]{replace_staged(folder,stage,[](size_t i){if(i==1) throw std::runtime_error("Injected disk failure");},cd2_updates);},"Crackdown 2 failure injection");
+  require(text(folder/"crackdown2.exe")=="new"&&!fs::exists(folder/".launcher-update-backup"),"Crackdown 2 rollback");
+}
 }
 int main(int argc,char** argv) {
   auto home=fs::temp_directory_path()/("launcher-v2-tests-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())); fs::create_directory(home);
-  try { std::string test=argc>1?argv[1]:""; if(test=="xzp_reader") xzp(); else if(test=="vdf_round_trip") vdf(home); else if(test=="update_version") versions(); else if(test=="sha256_verification") sha(home); else if(test=="staged_replacement") staged(home); else throw std::runtime_error("Unknown test case");
+  try { std::string test=argc>1?argv[1]:""; if(test=="xzp_reader") xzp(); else if(test=="vdf_round_trip") vdf(home); else if(test=="update_version") versions(); else if(test=="sha256_verification") sha(home); else if(test=="staged_replacement") staged(home); else if(test=="cd2_updates") cd2(home); else throw std::runtime_error("Unknown test case");
     fs::remove_all(home); std::cout<<checks<<" checks passed\n"; return 0;
   } catch(const std::exception& e) { std::cerr<<e.what()<<" after "<<checks<<" checks; fixture "<<utf8(home)<<'\n'; return 1; }
 }

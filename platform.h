@@ -27,7 +27,9 @@ class GameProcess {
  public:
   ~GameProcess();
   // Arguments are UTF-8 "--name=value" flags, passed without a shell.
-  void start(const fs::path& home, const std::vector<std::string>& args);
+  // exe: the game's executable in home (Windows name; POSIX drops ".exe").
+  void start(const fs::path& home, const std::vector<std::string>& args,
+             const std::string& exe = "crackdown.exe");
   std::optional<int> poll();
   bool running() const { return active_; }
   double elapsed() const;
@@ -39,6 +41,7 @@ class GameProcess {
 };
 std::string system_info();
 // The SDK's default user data folder: Documents\crackdown on Windows (rex::filesystem::GetUserFolder()).
-fs::path default_user_folder();
-std::string newest_log_tail(const fs::path& home, fs::file_time_type since);
+fs::path default_user_folder(const std::string& name = "crackdown");
+std::string newest_log_tail(const fs::path& home, fs::file_time_type since,
+                            const std::string& prefix = "crackdown_");
 }

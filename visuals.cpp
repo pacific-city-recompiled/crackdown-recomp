@@ -100,13 +100,13 @@ void Visuals::backdrop(ImVec2 size) {
   }
   if(agency_) { float edge=std::min(size.y*.48f,360.f); d->AddImage(id(agency_),{size.x-edge-40,120},{size.x-40,120+edge},{0,0},{1,1},IM_COL32(255,255,255,28)); }
 }
-void Visuals::logo(float scale) {
+void Visuals::logo(float scale, const char* fallback) {
   if(logo_) {
     auto s=texture_size(logo_); float w=220*scale;
     // The supported source has broad menu-safe margins around its central logo.
     ImGui::Image(id(logo_),{w,w*(s.y*.70f)/(s.x*.60f)},{.20f,.15f},{.80f,.85f});
   }
-  else { ImGui::PushFont(heading); ImGui::TextUnformatted("CRACKDOWN"); ImGui::PopFont(); }
+  else { ImGui::PushFont(heading); ImGui::TextUnformatted(fallback); ImGui::PopFont(); }
 }
 void Visuals::hints(const std::string& device,float scale) {
   float width=4*(28*scale+5*scale)+3*ImGui::GetStyle().ItemSpacing.x;

@@ -130,12 +130,11 @@ GameProcess::~GameProcess() {
   if(handle_) CloseHandle(static_cast<HANDLE>(handle_));
 #endif
 }
-void GameProcess::start(const fs::path& home, const std::vector<std::string>& args) {
+void GameProcess::start(const fs::path& home, const std::vector<std::string>& args, const std::string& exe_name) {
   if(active_) throw std::runtime_error("The game is already running");
-  auto exe=home/
 #ifdef _WIN32
-      "crackdown.exe";
-  if(!fs::is_regular_file(exe)) throw std::runtime_error("crackdown.exe is missing next to the launcher");
+  auto exe=home/fs::u8path(exe_name);
+  if(!fs::is_regular_file(exe)) throw std::runtime_error(exe_name+" is missing in "+utf8(home));
   if(handle_) { CloseHandle(static_cast<HANDLE>(handle_)); handle_=nullptr; }
   // Quote embedded quotes and double trailing backslashes for CommandLineToArgvW.
   std::wstring cmd=L"\""+exe.wstring()+L"\"";
@@ -160,10 +159,11 @@ void GameProcess::start(const fs::path& home, const std::vector<std::string>& ar
   FreeEnvironmentStringsW(inherited); environment.push_back(0);
   if(environment.size()==1) environment.push_back(0);
   STARTUPINFOW si{}; si.cb=sizeof(si); PROCESS_INFORMATION pi{};
-  if(!CreateProcessW(exe.c_str(),cmd.data(),nullptr,nullptr,FALSE,CREATE_UNICODE_ENVIRONMENT,environment.data(),home.c_str(),&si,&pi)) throw std::runtime_error("Cannot start crackdown.exe (Windows error "+std::to_string(GetLastError())+")");
+  if(!CreateProcessW(exe.c_str(),cmd.data(),nullptr,nullptr,FALSE,CREATE_UNICODE_ENVIRONMENT,environment.data(),home.c_str(),&si,&pi)) throw std::runtime_error("Cannot start "+exe_name+" (Windows error "+std::to_string(GetLastError())+")");
   CloseHandle(pi.hThread); handle_=pi.hProcess;
 #else
-      "crackdown";
+  auto stem=exe_name.ends_with(".exe")?exe_name.substr(0,exe_name.size()-4):exe_name;
+  auto exe=home/stem;
   std::string program=exe.string(); std::vector<std::string> copies=args;
   std::vector<char*> argv{program.data()}; for(auto& a:copies) argv.push_back(a.data()); argv.push_back(nullptr);
   // No shell; change only the child's working directory, preserving the launcher's.
@@ -230,25 +230,25 @@ std::string system_info() {
 #endif
   return out.str();
 }
-fs::path default_user_folder() {
+fs::path default_user_folder(const std::string& name) {
 #ifdef _WIN32
   fs::path result; PWSTR path=nullptr;
   if(SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Documents,KF_FLAG_DEFAULT,nullptr,&path))) result=path;
   CoTaskMemFree(path);
   if(result.empty()) throw std::runtime_error("Cannot find the Documents folder");
-  return result/"crackdown";
+  return result/fs::u8path(name);
 #else
-  if(auto xdg=std::getenv("XDG_DATA_HOME")) return fs::path(xdg)/"crackdown";
-  if(auto home=std::getenv("HOME")) return fs::path(home)/".local"/"share"/"crackdown";
+  if(auto xdg=std::getenv("XDG_DATA_HOME")) return fs::path(xdg)/name;
+  if(auto home=std::getenv("HOME")) return fs::path(home)/".local"/"share"/name;
   throw std::runtime_error("Cannot find the user data folder");
 #endif
 }
-std::string newest_log_tail(const fs::path& home, fs::file_time_type since) {
+std::string newest_log_tail(const fs::path& home, fs::file_time_type since, const std::string& prefix) {
   fs::path newest; auto time=since; std::error_code ec;
   if(!fs::is_directory(home/"logs",ec)) return "No new game log was created.";
   for(const auto& file:fs::directory_iterator(home/"logs")) {
     auto name=utf8(file.path().filename());
-    if(!file.is_regular_file() || !name.starts_with("crackdown_") || file.path().extension()!=".log") continue;
+    if(!file.is_regular_file() || !name.starts_with(prefix) || file.path().extension()!=".log") continue;
     auto t=file.last_write_time(); if(t>=time) { time=t; newest=file.path(); }
   }
   if(newest.empty()) return "No new game log was created.";
