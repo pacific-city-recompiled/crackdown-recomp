@@ -64,7 +64,7 @@ disc,update,confidence,evidence,used_in
 82658874,826D1AEC,high,function 826587F8->826D1A70 ratio 1.00 callers 0/0,hooks_pc_options.cpp
 82658880,826D1AF8,high,function 826587F8->826D1A70 ratio 1.00 callers 0/0,hooks_pc_options.cpp
 8265ADE4,826D42E8,review,function 8265A738->826D3B38 ratio 0.82 callers 0/0,midasm_hooks.toml
-82661C54,826DBACC,review,function 82661B58->826DB9B8 ratio 0.76 callers 0/0,midasm_hooks.toml
+82661C54,826DBAEC,manual,co-op no-HDD popup gate; 0x826DBACC was the switch dispatch (fixed by the co-op 60 thread; TU Host A Game ran),midasm_hooks.toml
 8266B928,826E6880,high,function 8266B928->826E6880 ratio 1.00 callers 0/0,hooks_pc_options.cpp
 8266B9C4,826E691C,high,function 8266B928->826E6880 ratio 1.00 callers 0/0,hooks_pc_options.cpp
 8266B9FC,826E6954,high,function 8266B928->826E6880 ratio 1.00 callers 0/0,hooks_pc_options.cpp
