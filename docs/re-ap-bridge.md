@@ -88,3 +88,46 @@ but not run live; duplicate
 tested). Jump-height effect of Agility not measured. Hidden-orb and vehicle
 pickup paths not run through the bridge. In-game overlay/notifications: none yet
 (log only).
+
+## 1.0.5: gated generals and the weapon locker (disc addresses)
+
+**Gated generals.** Slots with `gated_generals: true` in slot data get three
+progressive items (`Progressive Los Muertos/Volk/Shai-Gen`, catalog `gangs`).
+Copy k of a gang opens the k-th boss in its `order`; the kingpin is last (7th).
+- `823E9248` is the boss spawn-state eligibility predicate (vtable +4 of the
+  spawn state; state +12 = `cBossInfo`, vtable `0x820A513C`, +32 native id,
+  +64 gang pointer). Its callers `823E9C30`/`823EAB18` mark the state inactive
+  on false and evaluate it again later, so returning false holds a boss back
+  and the boss spawns once the item arrives. The hook only turns true into
+  false, never the reverse.
+- Gang membership is taken from the catalog and checked against the live
+  `+64` pointers on bind (`ap: native boss gangs ...`); a mismatch halts the
+  bridge instead of gating the wrong bosses.
+
+**Locker weapon switch.** Depositing a weapon whose AP item has not arrived
+leaves it carried but not available (armory entry +9 = 0).
+- `82642B98` (locker constructor) builds the primary/secondary/throwable lists
+  only from available entries (count from `82646038`, plus two pad rows).
+- `82643F50` syncs the highlight to the held weapons; a held weapon with no row
+  lands on a pad row, and `826439D8` equips only when the selection changes,
+  so the highlight shows a gun the player cannot pick (stuck with one-item lists).
+- Fix: the hook sets +9 on the carried, locked weapons for the duration of the
+  constructor call only, then restores 0. The held gun gets its row; nothing
+  else is unlocked (the deposit check in `82642760` already ran).
+
+Unit tests: `ap_catalog_tests` and `ap_state_tests` (`gangs`).
+
+Live run (Austin's PC, 2026-10-20, local AP 0.6.8 server, single-slot gated
+seed 1005, logs/screens in `out\wt-1.0.5\out\ap-live\`, game window only):
+- Bind, all 3 runs: `ap: native boss gangs 411EB120: 0 1 2 3 4 5 6 411EE100: 7 8 9 10 11 12 13 411F10E0: 14 15 16 17 18 19 20`
+  (catalog grouping confirmed; no mismatch halt).
+- Gate: `--teleport=410.36,4.81,-1381.25` with no gang items logs
+  `ap: boss native_id=0 held back ...`; no minimap marker or execution banner.
+  `/send Agent Progressive Los Muertos` → about 5 s later the boss marker
+  appears and Alvarez attacks. His dossier intro video still plays on arrival
+  while he is held back (cosmetic).
+- Locker: native addweapon Equalizer (id 10, not sent by the seed), deposit at
+  supply point 0 → `ap: locker lists 1 carried locked weapon(s)`; the held
+  gun is listed and selectable, switching to the pistol works, and once no
+  longer carried it is not offered. On the very first open the highlight
+  started one row off (on the EAR50); later opens were correct.

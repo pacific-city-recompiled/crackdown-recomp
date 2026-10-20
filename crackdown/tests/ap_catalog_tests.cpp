@@ -47,6 +47,14 @@ int main(int argc, char** argv) {
     wrong = contract; wrong.locations.erase(73403001); reject_stored(wrong);
     wrong = contract; wrong.goal = "items"; reject_stored(wrong);
     Check(contract.weapons.size() == 19 && contract.filler_item == 73411000, "slot M2 items");
+    Check(contract.gangs.empty(), "slot without gated_generals gated bosses");
+    Check(embedded.gangs.size() == 3 && embedded.gangs[0].progression.order.size() == 7 &&
+        embedded.gangs[0].progression.order.back() == 3, "embedded gang catalog");
+    auto gated_slot = slot; gated_slot["gated_generals"] = true;
+    auto gated = ParseSlotContract(embedded, gated_slot.dump(), embedded.Locations());
+    Check(gated.gangs.size() == 3 && gated.gangs[2].item == 73412102, "gated slot gangs");
+    ValidateStoredContract(embedded, gated);
+    wrong = gated; wrong.gangs[0].order.pop_back(); reject_stored(wrong);
     auto reject_slot = [&](json bad, const std::set<int64_t>& locations) {
       bool rejected = false;
       try { ParseSlotContract(embedded, bad.dump(), locations); }
@@ -81,6 +89,10 @@ int main(int argc, char** argv) {
     bad = j; bad["weapons"][0]["item"] = embedded.agility_item; Reject(bad);
     bad = j; bad["bosses"][0]["id"] = bad["orbs"][0]["id"]; Reject(bad);
     bad = j; bad["supply_points"][0]["starting"] = true; Reject(bad);
+    bad = j; bad["gangs"][0]["order"].erase(6); Reject(bad);  // kingpin not last
+    bad = j; bad["gangs"][1]["order"][0] = 0; Reject(bad);     // boss in two gangs
+    bad = j; bad["gangs"][2]["item"] = j["filler_item"]; Reject(bad);
+    bad = j; bad["gangs"].erase(2); Reject(bad);
     std::cout << "catalog: 500 agility + 300 hidden, five skills, invalid contracts rejected\n";
   } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

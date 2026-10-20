@@ -33,7 +33,10 @@
   "Watson HE99-X 'Firefly'": 73410116,
   "Shrapnel Grenade": 73410117,
   "Grenade": 73410118,
-  "Cluster Grenade": 73410119
+  "Cluster Grenade": 73410119,
+  "Progressive Los Muertos": 73412100,
+  "Progressive Volk": 73412101,
+  "Progressive Shai-Gen": 73412102
  },
  "agility": {
   "starting": 1,
@@ -9999,6 +10002,47 @@
    "native_id": 20,
    "name": "Defeat Vitaly Rzeznik",
    "kingpin": false
+  }
+ ],
+ "gangs": [
+  {
+   "name": "Los Muertos",
+   "item": 73412100,
+   "order": [
+    0,
+    1,
+    2,
+    4,
+    5,
+    6,
+    3
+   ]
+  },
+  {
+   "name": "Volk",
+   "item": 73412101,
+   "order": [
+    7,
+    8,
+    9,
+    10,
+    12,
+    13,
+    11
+   ]
+  },
+  {
+   "name": "Shai-Gen",
+   "item": 73412102,
+   "order": [
+    14,
+    15,
+    16,
+    18,
+    19,
+    20,
+    17
+   ]
   }
  ],
  "weapons": [
