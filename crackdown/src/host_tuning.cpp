@@ -211,6 +211,21 @@ void ApplyStartupDefaults(rex::PathConfig& paths) {
   // and the shader cache in userdata/ beside it instead of Documents\crackdown.
   // The launcher creates the marker and passes the same roots explicitly.
   const std::filesystem::path exe_dir = rex::filesystem::GetExecutableFolder();
+#if CRACKDOWN_TU
+  // The title update build runs the disc's game folder with Title Update #6
+  // from title-update\ next to the exe (unpacked there by the launcher):
+  // Default.xexp is applied at load (--xex_patch, SDK patch 0028) and the
+  // update's Local\<lang>\GameStrings_DLC.str is read through update:. The
+  // disc build never sees the patch.
+  if (paths.update_data_root.empty()) {
+    paths.update_data_root = exe_dir / "title-update";
+    REXLOG_INFO("crackdown default: --update_data_root={}", paths.update_data_root.string());
+  }
+  if (rex::cvar::Query<std::string>("xex_patch").empty()) {
+    rex::cvar::SetFlagByName("xex_patch", "update:\\default.xexp");
+    REXLOG_INFO("crackdown default: --xex_patch=update:\\default.xexp");
+  }
+#endif
   std::error_code portable_ec;
   if (std::filesystem::is_regular_file(exe_dir / "portable.txt", portable_ec)) {
     // The SDK has already filled in Documents\crackdown, so test the flags.
