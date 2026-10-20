@@ -24,7 +24,8 @@ ORBS = {
     'hidden': (0x40, 0xa8, 0xff),
 }
 ICON = 19.2   # native map icon scene size
-DOT = 12.0    # drawn orb size inside it
+DOT = 12.0    # drawn orb size inside it (no SizeMode: the native icon images
+              # set none and are stretched from 24 px art to their box)
 PIXELS = 32
 
 
@@ -82,7 +83,7 @@ def icon_scene(image_name):
                                           ('ClassOverride', 'scene'), ('Visual', 'XuiSceneBlank')])
     offset = (ICON - DOT) / 2
     image = element(editor, 'XuiImage', [('Id', 'orb'), ('Width', DOT), ('Height', DOT),
-                                          ('Position', [offset, offset, 0.0]), ('SizeMode', 1),
+                                          ('Position', [offset, offset, 0.0]),
                                           ('ImagePath', image_name)])
     scene['children'].append(image)
     scene['flags'] |= 2
