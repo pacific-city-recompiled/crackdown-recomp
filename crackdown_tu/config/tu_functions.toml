@@ -2,3 +2,6 @@
 [functions]
 0x824D2920 = {}
 0x82AA6D90 = {}
+# 0x8243A658: shared body that sub_8243A630 (type != 9) and sub_8243A650 (li r4,1) both branch into; without its own
+# entry codegen leaves a REX_FATAL tail call at 0x8243A648 (hit on the first stairs replay of the update build).
+0x8243A658 = {}

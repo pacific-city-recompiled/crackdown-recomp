@@ -242,11 +242,14 @@ void MaybeTeleport(PPCContext& ctx, uint8_t* base, uint32_t controller) {
     REXLOG_ERROR("teleport: bad position \"{}\" (want x,y,z)", spec);
     return;
   }
-  const uint32_t proxy = REX_LOAD_U32(controller + 660);
-  const uint32_t pos = controller + 336;
+  // The update moved the controller fields: proxy 660 -> 448, position/velocity block 336 -> 544
+  // (same accesses in sub_822A9E78 / sub_822D27A0: lwz r3,660|448(r31) before the proxy call,
+  // lfs/stfs 340,356,360 | 548,564,568(r31)).
+  const uint32_t proxy = REX_LOAD_U32(controller + CD_ADDR(660, 448));
+  const uint32_t pos = controller + CD_ADDR(336, 544);
   for (int i = 0; i < 3; ++i) REX_STORE_U32(pos + 4 * i, std::bit_cast<uint32_t>(v[i]));
   for (uint32_t i = 0; i < 16; i += 4) {
-    REX_STORE_U32(controller + 352 + i, 0);
+    REX_STORE_U32(pos + 16 + i, 0);
     REX_STORE_U32(proxy + 16 + i, 0);
   }
   const PPCContext saved = ctx;
