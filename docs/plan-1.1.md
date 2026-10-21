@@ -1,6 +1,6 @@
-# Plan: 1.1 (DLC release)
+# Plan: 1.2 (DLC release; the Crackdown 2 launcher took 1.1.0)
 
-1.1 follows 1.0 quickly. Branch `dlc/1.1` = main plus the DLC work; it is rebased whenever main moves.
+This release (planned as 1.1, shipped as 1.2.0 because 1.1.0 went out with the Crackdown 2 launcher) follows 1.0 quickly. Branch `dlc/1.1` = main plus the DLC work; it is rebased whenever main moves.
 
 ## In 1.1
 
@@ -16,7 +16,7 @@
      `default.xex`). Once `tu\default.xexp` and `crackdown_tu.exe` exist, "Play with the title update"
      (default on, `launcher.toml` `cd1_title_update`) makes PLAY start `crackdown_tu.exe
      --update_data_root=<install>\tu`. Archipelago always uses the disc exe.
-   - Left for 1.2: the Archipelago bridge on the update (struct offsets moved, e.g. skills +9056 -> +7104).
+   - Left for 1.3: the Archipelago bridge on the update (struct offsets moved, e.g. skills +9056 -> +7104).
 3. **GitHub issues** (Austin, 2026-10-20):
    - #13: 21:9 in a 2560x1080 window is letterboxed into a ~1680-wide box. Cause: `--aspect_ratio` set a
      720-line width (1680) but the SDK takes the video mode height from `window_height` when
@@ -34,11 +34,11 @@
 - Driving, `car_tp.rec --teleport=1931.6,11.4,-1783.9 --diag_vehicle`: update 6.7 / 12.6 / 17.6 m/s at
   0.5 / 1 / 1.5 s, disc 60 7.3 / 13.1 / 18.0, disc 30 7.7 / 14.1 / 18.4. Same top speed (20.4) and wall hit.
   The update at 30 fps couldn't be measured with this recording (its menu inputs land on Co-op at 30 fps),
-  so whether the extra ~4% is the update's own tuning or frame rate is open (1.2, with the 120/144 car work).
+  so whether the extra ~4% is the update's own tuning or frame rate is open (1.3, with the 120/144 car work).
 - Found and fixed on the way: an unresolved tail call at 0x8243A648 -> 0x8243A658 (REX_FATAL during gameplay
   on the update build) and the update's controller offsets for `--teleport`.
 
-## 1.2
+## 1.3
 
 - 120/144 fps: NPCs sprinting too fast at 120 (another 30 fps timer); car acceleration falls further behind as
   the frame rate rises (5-7% at 60).

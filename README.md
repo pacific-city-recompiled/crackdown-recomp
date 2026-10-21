@@ -90,7 +90,7 @@ The repository contains no game data. You need your own copy of Crackdown.
 
 ## Get started
 
-1. **Download** `CrackdownRecomp-1.1.0.zip` from the
+1. **Download** `CrackdownRecomp-1.2.0.zip` from the
    [latest release](https://github.com/Unowa001/crackdown-recomp/releases/latest) and extract
    the whole ZIP into a folder you can write to (for example `Documents\CrackdownRecomp`).
 2. **Run** `CrackdownLauncher.exe` and choose **Install game**. Select your Crackdown ISO
@@ -128,9 +128,9 @@ Full key map: [SETUP.md → Mouse and keyboard](SETUP.md#mouse-and-keyboard).
 
 ## Roadmap
 
-- **1.1:** DLC support (the Four-Play Pack, and the Free-For-All Pack with Keys to the City
+- **1.2:** DLC support (the Four-Play Pack, and the Free-For-All Pack with Keys to the City
   and Street Racing through Title Update #6), co-op at 60 fps, ultrawide and forced V-Sync fixes.
-- **1.2:** 120 and 144 fps, and the Archipelago randomizer on the title update.
+- **1.3:** 120 and 144 fps, and the Archipelago randomizer on the title update.
 - Native Linux: requested and tracked in
   [#5](https://github.com/Unowa001/crackdown-recomp/issues/5), no plan or date yet. Proton works today.
 
