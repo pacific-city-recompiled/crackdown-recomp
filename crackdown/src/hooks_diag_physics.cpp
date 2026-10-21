@@ -35,6 +35,7 @@
 #include <rex/hook.h>
 
 #include "input_replay.h"
+#include "midasm_hooks.h"
 
 REXCVAR_DEFINE_BOOL(diag_physics_dt, false, "Crackdown",
                     "Diagnostic: log the delta time Havok's simulation step functions receive");
@@ -443,9 +444,32 @@ void MaybeTeleportVehicle(uint8_t* base, uint32_t vehicle) {
 }
 }  // namespace
 
+// Runs the vehicle action with the step CrackdownVehicleActionStep chooses
+// (--sim_vehicle_30hz, hooks_framerate.cpp): the hkStepInfo at r4 gets that
+// deltaTime (+8) and invDeltaTime (+12) for the call and its own back after.
+// Returns that step, or 0 when the action is skipped this step.
+static float RunVehicleAction(PPCContext& ctx, uint8_t* base) {
+  const uint32_t info = ctx.r4.u32;
+  const uint32_t dt_bits = REX_LOAD_U32(info + 8);
+  const uint32_t inv_bits = REX_LOAD_U32(info + 12);
+  const float dt = std::bit_cast<float>(dt_bits);
+  const float step = CrackdownVehicleActionStep(ctx.r3.u32, dt);
+  if (step == 0.0f) return 0.0f;
+  if (step != dt) {
+    REX_STORE_U32(info + 8, std::bit_cast<uint32_t>(step));
+    REX_STORE_U32(info + 12, std::bit_cast<uint32_t>(1.0f / step));
+  }
+  CD_IMP(824A1708, 824F4600)(ctx, base);
+  if (step != dt) {
+    REX_STORE_U32(info + 8, dt_bits);
+    REX_STORE_U32(info + 12, inv_bits);
+  }
+  return step;
+}
+
 CD_HOOK_RAW(CD_SUB(824A1708, 824F4600)) {
   if (!REXCVAR_GET(diag_vehicle)) {
-    CD_IMP(824A1708, 824F4600)(ctx, base);
+    RunVehicleAction(ctx, base);
     return;
   }
   const uint32_t vehicle = ctx.r3.u32;
@@ -453,9 +477,9 @@ CD_HOOK_RAW(CD_SUB(824A1708, 824F4600)) {
     std::lock_guard lock(g_vehicle_mutex);
     MaybeTeleportVehicle(base, vehicle);
   }
-  const float dt = std::bit_cast<float>(REX_LOAD_U32(ctx.r4.u32 + 8));
   const uint32_t lr = static_cast<uint32_t>(ctx.lr);
-  CD_IMP(824A1708, 824F4600)(ctx, base);
+  const float dt = RunVehicleAction(ctx, base);
+  if (dt == 0.0f) return;
   const uint32_t entity = REX_LOAD_U32(vehicle + 24);
   const uint32_t chassis = REX_LOAD_U32(vehicle + 68);
   const uint32_t motion = entity ? REX_LOAD_U32(entity + 80) : 0;
