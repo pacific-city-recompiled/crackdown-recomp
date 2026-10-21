@@ -48,7 +48,7 @@ The files are not code-signed, so Windows may warn you:
 - Controller recommended (Xbox-style controllers work out of the box). For mouse and
   keyboard, see below.
 - 60 fps is the default. In the launcher's settings, **30 fps** restores the original timing.
-  Co-op always runs at 30 fps (see "Co-op" below).
+  Co-op runs at 60 fps too; both players should pick the same frame rate.
 - **Save profiles** in the launcher keep separate saves; a new profile starts a fresh game.
 - Saves live in `Documents\crackdown`; logs are in the `logs\` folder next to the game. For
   **portable mode**, tick **Keep saves with the game** in the launcher's SAVES tab: the first
@@ -88,6 +88,22 @@ sensitivity slider). The keyboard stands in for a controller:
 
 Every key can be rebound in `crackdown.toml` (`keybind_a`, `keybind_start`,
 `keybind_left_shoulder`, `keybind_lstick_press`, ...). `mnk_mouse = false` turns mouse look off.
+
+## DLC and the title update
+
+Both are optional and come from your own Xbox 360 (or a backup of its `Content` folder):
+
+1. **Install DLC** on the launcher's home page takes a DLC package from
+   `Content\0000000000000000\4D5307DC\00000002` (keep its original file name). It is unpacked
+   once into your save folder and every save profile can use it. The **Four-Play Pack** works
+   with the original game.
+2. The **Free-For-All Pack** (Keys to the City, Street Racing) needs **Title Update #6**:
+   **Install title update** takes `TU_16L61US_0000004000000.00000000001G1` from
+   `Content\0000000000000000\4D5307DC\000B0000`. It goes into `tu\` next to the launcher;
+   your game files are not changed.
+3. With the update installed, **Play with the title update** (home page, on by default) starts
+   the title update build. Untick it to play the original version. Archipelago always uses the
+   original version.
 
 ## Updates
 
@@ -163,8 +179,9 @@ This is the first multiworld release; please report anything odd with the steps 
 ## Co-op (experimental)
 
 Two players can play the Campaign together over **System Link**, each on their own PC
-with their own copy of the game and the **same release version**. Co-op runs at the
-original 30 fps (the 60 fps mode drops the connection; that is being worked on).
+with their own copy of the game and the **same release version**. Co-op runs at 60 fps
+(both games step in lockstep); both players should use the same frame rate setting and the
+same build (both with or both without the title update).
 
 So far this has only been tested with two copies of the game on one PC. Please tell us how
 it goes between two PCs.
