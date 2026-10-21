@@ -90,7 +90,7 @@ The repository contains no game data. You need your own copy of Crackdown.
 
 ## Get started
 
-1. **Download** `CrackdownRecomp-1.2.0.zip` from the
+1. **Download** `CrackdownRecomp-1.2.1.zip` from the
    [latest release](https://github.com/Unowa001/crackdown-recomp/releases/latest) and extract
    the whole ZIP into a folder you can write to (for example `Documents\CrackdownRecomp`).
 2. **Run** `CrackdownLauncher.exe` and choose **Install game**. Select your Crackdown ISO
