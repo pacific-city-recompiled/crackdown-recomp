@@ -21,6 +21,7 @@
 // Times are in milliseconds, so one recording replays at any frame rate.
 
 #include "generated/default/crackdown_init.h"
+#include "game_addresses.h"
 
 #include <algorithm>
 #include <atomic>
@@ -321,10 +322,10 @@ bool GameplayStarted() { return g_character_seen.load(std::memory_order_relaxed)
 void SetInputReplayQuit(std::function<void()> quit) { g_quit = std::move(quit); }
 }  // namespace crackdown
 
-REX_HOOK_RAW(sub_82743798) {
+CD_HOOK_RAW(CD_SUB(82743798, 827CCB18)) {
   const uint32_t user = ctx.r3.u32;
   const uint32_t state_ea = ctx.r4.u32;
-  __imp__sub_82743798(ctx, base);
+  CD_IMP(82743798, 827CCB18)(ctx, base);
   if (user != 0 || !state_ea || g_inactive.load(std::memory_order_relaxed)) return;
   std::lock_guard lock(g_mutex);
   Init();
@@ -350,10 +351,10 @@ REX_HOOK_RAW(sub_82743798) {
   }
 }
 
-REX_HOOK_RAW(sub_827437C0) {
+CD_HOOK_RAW(CD_SUB(827437C0, 827CCB40)) {
   const uint32_t key_ea = ctx.r5.u32;
   if (!key_ea || g_inactive.load(std::memory_order_relaxed)) {
-    __imp__sub_827437C0(ctx, base);
+    CD_IMP(827437C0, 827CCB40)(ctx, base);
     return;
   }
   {
@@ -376,7 +377,7 @@ REX_HOOK_RAW(sub_827437C0) {
       return;
     }
   }
-  __imp__sub_827437C0(ctx, base);
+  CD_IMP(827437C0, 827CCB40)(ctx, base);
   std::lock_guard lock(g_mutex);
   if (g_recording && ctx.r3.u32 == kErrorSuccess) {
     Tick();

@@ -27,6 +27,7 @@
 // (blown out). Release pan bench 84.2 -> 94.4 fps avg, 1% low 15.3 -> 13.8 ms.
 
 #include "host_tuning.h"
+#include "game_addresses.h"
 
 #include <string>
 #include <string_view>
@@ -59,6 +60,7 @@ REXCVAR_DECLARE(std::string, gpu_plugin);  // SDK rex_app.cpp
 REXCVAR_DECLARE(bool, sim_variable_step);  // hooks_framerate.cpp
 REXCVAR_DECLARE(bool, sim_game_clock);     // hooks_framerate.cpp
 REXCVAR_DECLARE(bool, sim_step_literal);   // hooks_framerate.cpp
+REXCVAR_DECLARE(bool, sim_lockstep_step);  // hooks_framerate.cpp
 
 // Guest 0x82BAA330: s32 frame cap read by the render loop's limiter
 // (sub_826A65F0 / sub_826A7698: Sleep((1000 / cap) - elapsed) when a frame
@@ -112,19 +114,23 @@ void ApplyGameDefaults() {
   auto user_set = [](const char* name) {
     return rex::cvar::GetFlagSource(name) != rex::cvar::Source::kDefault;
   };
-  // System Link co-op drops with "Connection to other player lost" about a
-  // second after spawning under the measured clock, and holds at stock 30 fps
-  // (two instances, out/coop-live 2026-10-13); the netcode's timers are not
-  // audited for 60 Hz yet. So co-op networking means stock 30 fps unless
-  // --vsync is set explicitly.
+  // System Link co-op runs the game in lockstep and compares the peers' state
+  // hash every frame (hooks_framerate.cpp, --sim_lockstep_step). Under the
+  // measured clock each peer stepped by its own frame time and the hashes
+  // split about 200 ms into the city: "Connection to other player lost"
+  // (out/coop-live 2026-10-13). In co-op the 60 fps set is applied with
+  // --sim_lockstep_step, which steps exactly 1/60 s per frame on both peers,
+  // so fps_cap is held at 60 there. The older --sim_hz/--sim_variable_step
+  // modes have no lockstep form: with one of them co-op stays stock 30 fps.
   const bool coop = rex::cvar::Query<std::string>("net_mode") != "off";
-  const bool stock = user_set("vsync") ? rex::cvar::Query<bool>("vsync") : coop;
   const bool other_step_mode =
       (user_set("sim_hz") && rex::cvar::Query<int32_t>("sim_hz") > 0) ||
       (user_set("sim_variable_step") && REXCVAR_GET(sim_variable_step));
-  if (stock && !user_set("vsync")) {
-    REXLOG_INFO("crackdown defaults: co-op networking on, stock 30 fps (60 fps defaults not "
-                "applied; --vsync=false overrides)");
+  const bool coop_fallback = coop && other_step_mode && !user_set("vsync");
+  const bool stock = user_set("vsync") ? rex::cvar::Query<bool>("vsync") : coop_fallback;
+  if (coop_fallback) {
+    REXLOG_INFO("crackdown defaults: co-op networking on with --sim_hz/--sim_variable_step, "
+                "which have no lockstep step: stock 30 fps (60 fps defaults not applied)");
   } else if (stock) {
     REXLOG_INFO("crackdown defaults: --vsync=true, stock 30 fps (60 fps defaults not applied)");
   } else if (other_step_mode) {
@@ -152,14 +158,39 @@ void ApplyGameDefaults() {
       REXLOG_WARN("crackdown default: could not set --{}={}", d.name, d.value);
     }
   }
+  if (coop && !stock) {
+    if (!user_set("sim_lockstep_step")) {
+      if (rex::cvar::SetFlagByName("sim_lockstep_step", "true")) {
+        REXLOG_INFO("crackdown default: --sim_lockstep_step=true (co-op networking on)");
+      } else {
+        REXLOG_WARN("crackdown default: could not set --sim_lockstep_step=true");
+      }
+    }
+    // Both peers must run the same 1/60 step at the same rate, whatever the
+    // user or the launcher asked for (ApplyFpsCap and PaceFrame read it later).
+    const int32_t cap = rex::cvar::Query<int32_t>("fps_cap");
+    if (cap != 60) {
+      if (rex::cvar::SetFlagByName("fps_cap", "60")) {
+        REXLOG_INFO("crackdown default: co-op networking on, --fps_cap={} -> 60", cap);
+      } else {
+        REXLOG_WARN("crackdown default: could not hold --fps_cap at 60 in co-op");
+      }
+    }
+  }
   // --aspect_ratio: give the guest frame buffer the same shape as the camera
-  // (hooks_aspect.cpp), 720 lines high, width a multiple of 8.
+  // (hooks_aspect.cpp), width a multiple of 8. Height: the window's when one is
+  // set, else 720. The SDK takes the video mode height from window_height
+  // whenever video_mode_height holds its default (720), so a 720-line width
+  // in a 1080-high window became a 1680x1080 (14:9) mode and the presenter
+  // letterboxed the 21:9 picture into a 1680-wide box (GitHub issue #13).
   if (!AspectRatioIsDefault() && !user_set("video_mode_width") && !user_set("video_mode_height")) {
-    const int width = int(std::lround(720.0 * AspectRatio() / 8.0)) * 8;
+    const int32_t window_height = rex::cvar::Query<int32_t>("window_height");
+    const int height = user_set("window_height") && window_height > 0 ? window_height : 720;
+    const int width = int(std::lround(height * AspectRatio() / 8.0)) * 8;
     if (rex::cvar::SetFlagByName("video_mode_width", std::to_string(width)) &&
-        rex::cvar::SetFlagByName("video_mode_height", "720")) {
-      REXLOG_INFO("crackdown default: --video_mode_width={} --video_mode_height=720 (aspect_ratio)",
-                  width);
+        rex::cvar::SetFlagByName("video_mode_height", std::to_string(height))) {
+      REXLOG_INFO("crackdown default: --video_mode_width={} --video_mode_height={} (aspect_ratio)",
+                  width, height);
     } else {
       REXLOG_WARN("crackdown default: could not set the video mode for aspect_ratio");
     }
@@ -204,6 +235,21 @@ void ApplyStartupDefaults(rex::PathConfig& paths) {
   // and the shader cache in userdata/ beside it instead of Documents\crackdown.
   // The launcher creates the marker and passes the same roots explicitly.
   const std::filesystem::path exe_dir = rex::filesystem::GetExecutableFolder();
+#if CRACKDOWN_TU
+  // The title update build runs the disc's game folder with Title Update #6
+  // from tu\ next to the exe (unpacked there by the launcher):
+  // Default.xexp is applied at load (--xex_patch, SDK patch 0028) and the
+  // update's Local\<lang>\GameStrings_DLC.str is read through update:. The
+  // disc build never sees the patch.
+  if (paths.update_data_root.empty()) {
+    paths.update_data_root = exe_dir / "tu";
+    REXLOG_INFO("crackdown default: --update_data_root={}", paths.update_data_root.string());
+  }
+  if (rex::cvar::Query<std::string>("xex_patch").empty()) {
+    rex::cvar::SetFlagByName("xex_patch", "update:\\default.xexp");
+    REXLOG_INFO("crackdown default: --xex_patch=update:\\default.xexp");
+  }
+#endif
   std::error_code portable_ec;
   if (std::filesystem::is_regular_file(exe_dir / "portable.txt", portable_ec)) {
     // The SDK has already filled in Documents\crackdown, so test the flags.
@@ -252,7 +298,7 @@ REXCVAR_DEFINE_INT32(sim_hz, 0, "Crackdown",
     .range(0, 240);
 
 void ApplySimRate(rex::memory::Memory* memory) {
-  constexpr uint32_t kStepConstantAddress = 0x820ED704;
+  constexpr uint32_t kStepConstantAddress = CD_ADDR(0x820ED704, 0x820F8084);
   int32_t hz = REXCVAR_GET(sim_hz);
   const bool game_clock = REXCVAR_GET(sim_game_clock);
   if (hz > 0 && (game_clock || REXCVAR_GET(sim_variable_step))) {
@@ -289,19 +335,21 @@ void ApplySimRate(rex::memory::Memory* memory) {
 }
 
 void ApplyFpsCap(rex::memory::Memory* memory) {
-  constexpr uint32_t kFrameCapAddress = 0x82BAA330;
+  constexpr uint32_t kFrameCapAddress = CD_ADDR(0x82BAA330, 0x82C3A9A4);
   const int32_t cap = REXCVAR_GET(fps_cap);
   if (cap <= 0 || !memory) {
     return;
   }
-  // Above 60 the host paces frames exactly (PaceFrame, hooks_framerate.cpp)
-  // and the guest's whole-ms limiter is moved out of the way.
-  const int32_t guest_cap = cap > 60 ? 1000 : cap;
+  // Above 60, and in co-op's lockstep mode, the host paces frames exactly
+  // (PaceFrame, hooks_framerate.cpp) and the guest's whole-ms limiter is moved
+  // out of the way.
+  const bool host_paced = cap > 60 || REXCVAR_GET(sim_lockstep_step);
+  const int32_t guest_cap = host_paced ? 1000 : cap;
   auto* p = memory->TranslateVirtual<uint8_t*>(kFrameCapAddress);
   const int32_t old_cap = rex::memory::load_and_swap<int32_t>(p);
   rex::memory::store_and_swap<int32_t>(p, guest_cap);
   REXLOG_INFO("fps_cap: guest frame cap {} -> {}{}", old_cap, guest_cap,
-              cap > 60 ? " (host paces " + std::to_string(cap) + " fps)" : std::string());
+              host_paced ? " (host paces " + std::to_string(cap) + " fps)" : std::string());
 }
 
 REXCVAR_DEFINE_STRING(dump_image, "", "Crackdown",

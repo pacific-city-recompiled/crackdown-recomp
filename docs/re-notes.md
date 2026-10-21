@@ -448,3 +448,26 @@ scale settings and CLI overrides remain intact and can override preset semantics
 Literal English options labels have no existing options.xus; future locale paths
 are listed in pc-options.md. Footer hints are hidden; XuiBackButton has visible
 Back text for mouse use, retaining the native controller PressKey 22593.
+
+## DLC (Marketplace content, 2026-10-17)
+
+- Packages: Four-Play Pack `E4DDBC100F97B6954B84E82ED807E79B5A4314C04D` (agents 9-12: `Agents.txt`,
+  `FullCity_DLCAgents.dff`, `Streaming/FullCity_DLCAgents.resblock`, `XUIFrontEnd/Scene.xzp`) and Free-For-All Pack
+  `AA10729E62721B4EAF674486684E31CD9B94AC4F4D` (41 files: Keys to the City cheats `Save/Cheat Mode.sav`, street racing,
+  `fullcity_0200_DLC`, audio, `Digest2.txt`, `Capabilities.txt` = 3). Both read-only LIVE STFS, title 4D5307DC, type 2.
+- The game enumerates type-2 content, mounts each pack (`save0:`/`save1:`), reads `packageinfo.bin` (absent),
+  `Digest.txt` (MD5 per file) and `local\<lang>\xuifrontend\scene.xzp`. A pack without `Digest.txt` is unmounted.
+  Logs `crackdown_118.log`, `crackdown_121.log` (trace): Four-Play stays mounted and `save1:\Streaming` is read
+  at the city load; Free-For-All fails on `save0:\Digest.txt` and is unmounted.
+- The disc XEX has the UTF-16 strings `Digest.txt` (0xE5730 in `out/ap-discovery/guest-image.bin`, next to
+  `Validate.cpp`), `Capabilities.txt` (0xC7E20, next to `SG_X_cDLC.cpp`) and `Agents.txt`, but no `Digest2.txt`,
+  `Scene_CommonDLC` or `Street Racing`: Free-For-All needs the title update released with it (May 2007).
+- Install layout: `<dlc_root>/0000000000000000/4D5307DC/00000002/<pkg>/` + `Headers/00000002/<pkg>.header`
+  (SDK patch 0025 adds `--dlc_root`; the launcher passes the base user folder and unpacks with `install_dlc`).
+- Title update (2026-10-17): `TU_16L61US_0000004000000.00000000001G1` is "Crackdown Title Update #6" (STFS LIVE, type
+  000B0000, media 596F9615, sha256 3c544a98...28a1): `Default.xexp` + `Local/<lang>/GameStrings_DLC.str`. The SDK
+  applies a sibling `Default.xexp` at load (`UserModule::LoadFromFile`), in codegen too: base 0.0.0.1 -> 0.0.6.1,
+  XEX filetime 2009-10-09. TU codegen (out/tu-probe, 2 extra function starts 0x824D2920, 0x82AA6D90) succeeds with
+  42558 functions vs 42295. No function keeps its address (only 9689 match by instruction sequence, shifted by
+  0x88000-0x94000), so all 177 code and 34 data addresses our hooks use need re-finding. The base exe with the xexp
+  in its game folder dies at once: host init writes guest 0x82BAA330 (log crackdown_126).

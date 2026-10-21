@@ -63,7 +63,11 @@ if (-not $SkipBuild) {
     $vs = if ($VisualStudio) { $VisualStudio } else { & $vswhere -latest -products * -property installationPath }
     if (-not $vs -or -not (Test-Path -LiteralPath (Join-Path $vs 'VC/Auxiliary/Build/vcvars64.bat'))) { throw 'Visual Studio C++ Build Tools not found; pass -VisualStudio <install path>' }
     $vcvars = Join-Path $vs 'VC/Auxiliary/Build/vcvars64.bat'
-    $vars = & $env:ComSpec /d /s /c "`"`"$vcvars`" >nul && set`""
+    # Through a temporary .cmd: Windows PowerShell 5.1 mangles the nested quotes of an inline
+    # cmd /s /c "..." around a path with spaces ('""C:\Program' is not recognized).
+    $capture = Join-Path $env:TEMP ("vcvars-" + [guid]::NewGuid().ToString('N') + '.cmd')
+    Set-Content -LiteralPath $capture -Encoding ASCII -Value "@call `"$vcvars`" >nul || exit /b 1`r`n@set"
+    try { $vars = & $env:ComSpec /d /c $capture } finally { Remove-Item -LiteralPath $capture -ErrorAction SilentlyContinue }
     if ($LASTEXITCODE -ne 0) { throw 'vcvars64 failed' }
     foreach ($line in $vars) {
         if ($line -match '^([^=]+)=(.*)$') { [Environment]::SetEnvironmentVariable($Matches[1],$Matches[2],'Process') }
@@ -79,6 +83,14 @@ if (-not $SkipBuild) {
         Invoke-Checked cmake @('--preset','win-amd64-release',"-DCMAKE_PREFIX_PATH=$sdk/out/install/win-amd64")
         Invoke-Checked cmake @('--build','--preset','win-amd64-release')
     } finally { Pop-Location }
+    # The title update build's codegen reads game-tu\Default.xex + Default.xexp (Title Update #6,
+    # see docs/plan-title-update.md); never shipped, only compiled from.
+    if (-not (Test-Path -LiteralPath (Join-Path $repo 'game-tu/Default.xexp'))) { throw 'game-tu\Default.xex + Default.xexp missing (needed to build crackdown_tu.exe)' }
+    Push-Location (Join-Path $repo 'crackdown_tu')
+    try {
+        Invoke-Checked cmake @('--preset','win-amd64-release',"-DCMAKE_PREFIX_PATH=$sdk/out/install/win-amd64","-DSDK_THIRDPARTY=$sdk/thirdparty")
+        Invoke-Checked cmake @('--build','--preset','win-amd64-release')
+    } finally { Pop-Location }
     $oldLauncherVS = $env:LAUNCHER_VS
     try {
         $env:LAUNCHER_VS = $vs
@@ -87,6 +99,8 @@ if (-not $SkipBuild) {
 }
 
 $gameBuild = Join-Path $repo 'crackdown/out/build/win-amd64-release'
+# Title update build (crackdown_tu.exe): same runtime DLLs; reads tu\, which the launcher installs.
+$tuBuild = Join-Path $repo 'crackdown_tu/out/build/win-amd64-release'
 $launcherBuild = Join-Path $repo 'crackdown/launcher/out'
 $bin = Join-Path $sdk 'out/install/win-amd64/bin'
 $llvm = Join-Path $env:ProgramFiles 'LLVM/bin/llvm-readobj.exe'
@@ -101,6 +115,7 @@ New-Item -ItemType Directory -Path $stage | Out-Null
 foreach ($file in @(
     (Join-Path $launcherBuild 'CrackdownLauncher.exe'),
     (Join-Path $gameBuild 'crackdown.exe'),
+    (Join-Path $tuBuild 'crackdown_tu.exe'),
     (Join-Path $bin 'rexruntime.dll'),
     (Join-Path $bin 'rexgpu-xenos.dll'),
     (Join-Path $repo 'tools/game-manifest.txt'),

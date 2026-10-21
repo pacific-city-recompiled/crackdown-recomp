@@ -11,6 +11,7 @@
 // --sim_audio_timeout_30hz, independently of the opt-in diagnostic.
 
 #include "generated/default/crackdown_init.h"
+#include "game_addresses.h"
 #include "midasm_hooks.h"
 
 #include <chrono>
@@ -93,14 +94,14 @@ std::string Chain(PPCContext& ctx, uint8_t* base) {
 }
 }  // namespace
 
-REX_HOOK_RAW(sub_82A524F8) {
+CD_HOOK_RAW(CD_SUB(82A524F8, 82ADB3F8)) {
   if (!REXCVAR_GET(diag_audio)) {
-    __imp__sub_82A524F8(ctx, base);
+    CD_IMP(82A524F8, 82ADB3F8)(ctx, base);
     return;
   }
   const uint32_t voice = ctx.r3.u32;
   const std::string chain = Chain(ctx, base);
-  __imp__sub_82A524F8(ctx, base);
+  CD_IMP(82A524F8, 82ADB3F8)(ctx, base);
   std::lock_guard lock(g_mutex);
   g_started[voice] = Clock::now();
   g_created_voice = voice;
@@ -111,15 +112,15 @@ REX_HOOK_RAW(sub_82A524F8) {
               Streams(voice, base));
 }
 
-REX_HOOK_RAW(sub_82A51AA0) {
+CD_HOOK_RAW(CD_SUB(82A51AA0, 82ADA9A0)) {
   if (!REXCVAR_GET(diag_audio)) {
-    __imp__sub_82A51AA0(ctx, base);
+    CD_IMP(82A51AA0, 82ADA9A0)(ctx, base);
     return;
   }
   const uint32_t voice = ctx.r3.u32;
   const std::string chain = Chain(ctx, base);
   const std::string streams = Streams(voice, base);
-  __imp__sub_82A51AA0(ctx, base);
+  CD_IMP(82A51AA0, 82ADA9A0)(ctx, base);
   std::lock_guard lock(g_mutex);
   double ms = -1.0;
   if (auto it = g_started.find(voice); it != g_started.end()) {
@@ -134,40 +135,40 @@ REX_HOOK_RAW(sub_82A51AA0) {
 // 0x82A4A030 -> 0x82A53DE8 -> 0x82A53690 creates the source synchronously.
 // The descriptor is copied as 56 bytes at 0x82A536B4; its additional fields
 // at +56..+88 are read by 0x82A536B8..0x82A53748.
-REX_HOOK_RAW(sub_82A4A030) {
+CD_HOOK_RAW(CD_SUB(82A4A030, 82AD2F88)) {
   if (!REXCVAR_GET(diag_audio)) {
-    __imp__sub_82A4A030(ctx, base);
+    CD_IMP(82A4A030, 82AD2F88)(ctx, base);
     return;
   }
   const std::string previous = g_creating;
   const uint32_t descriptor = ctx.r3.u32;
   g_creating = std::format("desc={:08X} words={} chain={}", descriptor,
                            Words(descriptor, 23, base), Chain(ctx, base));
-  __imp__sub_82A4A030(ctx, base);
+  CD_IMP(82A4A030, 82AD2F88)(ctx, base);
   g_creating = previous;
 }
 
 // Source Start: flags bit 0 chooses deferred activation (0x82A53B18),
 // otherwise immediate activation (0x82A53770). The game Stop wrapper is
 // 0x82A49AC0 (vtable +60); timeout producer is logged by 0x8225B0A8 below.
-REX_HOOK_RAW(sub_82A53EE8) {
+CD_HOOK_RAW(CD_SUB(82A53EE8, 82ADCDA8)) {
   if (REXCVAR_GET(diag_audio)) {
     REXLOG_INFO("diag_audio: request_start source={:08X} flags={:08X} chain {}",
                 ctx.r3.u32, ctx.r4.u32, Chain(ctx, base));
   }
-  __imp__sub_82A53EE8(ctx, base);
+  CD_IMP(82A53EE8, 82ADCDA8)(ctx, base);
 }
 
 // Game wave instance: 0x8225AB30 reads a wave-bank entry's sample duration
 // through 0x8225BBD8, sets +8 = floor(samples / 48000) * 30 + 70,
 // initializes elapsed frames +12, then creates the XAudio source into +0.
-REX_HOOK_RAW(sub_8225AB30) {
+CD_HOOK_RAW(CD_SUB(8225AB30, 8227F8A0)) {
   if (AudioTimeout30Hz()) {
     std::lock_guard lock(g_timeout_mutex);
     g_timeout_carry.erase(ctx.r3.u32);  // pooled instance reused for a new clip
   }
   if (!REXCVAR_GET(diag_audio)) {
-    __imp__sub_8225AB30(ctx, base);
+    CD_IMP(8225AB30, 8227F8A0)(ctx, base);
     return;
   }
   const uint32_t instance = ctx.r3.u32;
@@ -192,7 +193,7 @@ REX_HOOK_RAW(sub_8225AB30) {
                             "length_ms={:.1f} loop={}", instance, bank, name, index,
                             samples, double(samples) / 48.0, ctx.r6.u32 & 0xFF);
   g_created_voice = 0;
-  __imp__sub_8225AB30(ctx, base);
+  CD_IMP(8225AB30, 8227F8A0)(ctx, base);
   REXLOG_INFO("diag_audio: game_start {} source={:08X} voice={:08X} deadline={} state={}",
               g_game_clip, REX_LOAD_U32(instance), g_created_voice,
               REX_LOAD_U32(instance + 8), REX_LOAD_U8(instance + 16));
@@ -200,9 +201,9 @@ REX_HOOK_RAW(sub_8225AB30) {
 }
 
 // +12 increments at 0x8225B254; > +8 stops the source at 0x8225B274.
-REX_HOOK_RAW(sub_8225B0A8) {
+CD_HOOK_RAW(CD_SUB(8225B0A8, 8227FE18)) {
   if (!REXCVAR_GET(diag_audio)) {
-    __imp__sub_8225B0A8(ctx, base);
+    CD_IMP(8225B0A8, 8227FE18)(ctx, base);
     return;
   }
   const uint32_t instance = ctx.r3.u32;
@@ -210,7 +211,7 @@ REX_HOOK_RAW(sub_8225B0A8) {
   const uint32_t elapsed = REX_LOAD_U32(instance + 12);
   const uint32_t deadline = REX_LOAD_U32(instance + 8);
   const uint8_t state = REX_LOAD_U8(instance + 16);
-  __imp__sub_8225B0A8(ctx, base);
+  CD_IMP(8225B0A8, 8227FE18)(ctx, base);
   if (state == 2 && REX_LOAD_U8(instance + 16) == 3) {
     REXLOG_INFO("diag_audio: game_stop instance={:08X} source={:08X} elapsed={}->{} "
                 "deadline={} chain {}", instance, source, elapsed,

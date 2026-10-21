@@ -1,0 +1,195 @@
+disc,update,confidence,evidence,used_in
+8203503C,820350B8,data,data reference vote,hooks_events.cpp
+8203505C,820350D8,data,data reference vote,hooks_events.cpp
+8204D120,8204D140,data,data reference vote,hooks_diag_physics.cpp
+8204D134,8204D154,data,data reference vote,hooks_diag_physics.cpp
+8204FF58,8204FF78,data,data reference vote,hooks_diag_physics.cpp
+8207C68C,8207CF34,data,data reference vote,hooks_events.cpp
+8208A780,,open,data: map by use or import name,hooks_diag_physics.cpp
+8208D850,8208FBE8,manual,character vtable; aligned 264 of 316 entries,ap_probe.cpp;ap_trace.cpp;bridge.cpp
+820A513C,820AACE0,data,data reference vote,ap_probe.cpp;bridge.cpp
+820B5100,820BC5A8,data,data reference vote,hooks_diag_physics.cpp
+820ED704,820F8084,data,data reference vote,hooks_diag_physics.cpp;hooks_framerate.cpp;host_tuning.cpp;host_tuning.h
+820ED7CC,820F8154,data,data reference vote,hooks_framerate.cpp
+820F66C8,,open,data: map by use or import name,hooks_diag_physics.cpp
+8225AB30,8227F8A0,high,function 8225AB30->8227F8A0 ratio 1.00 callers 1/1,hooks_diag_audio.cpp;midasm_hooks.toml
+8225B0A8,8227FE18,high,function 8225B0A8->8227FE18 ratio 1.00 callers 1/1,hooks_diag_audio.cpp
+8225B250,8227FFC0,high,function 8225B0A8->8227FE18 ratio 1.00 callers 1/1,hooks_diag_audio.cpp;midasm_hooks.toml
+8225B254,8227FFC4,high,function 8225B0A8->8227FE18 ratio 1.00 callers 1/1,hooks_diag_audio.cpp;midasm_hooks.toml
+8225B274,8227FFE4,high,function 8225B0A8->8227FE18 ratio 1.00 callers 1/1,hooks_diag_audio.cpp;midasm_hooks.toml
+8225BBD8,822808A0,high,function 8225BBD8->822808A0 ratio 1.00 callers 2/2,hooks_diag_audio.cpp
+8225C614,822812DC,high,function 8225C538->82281200 ratio 1.00 callers 0/0,hooks_events.cpp
+82287170,822AE220,high,function 82287130->822AE1E0 ratio 0.92 callers 3/3,midasm_hooks.toml
+82299350,822C1B10,manual,"vtable slot 305 (addi r3,r3,N; blr); skill block offset 9056 -> 7104",ap_probe.cpp;ap_trace.cpp;bridge.cpp
+822AB5CC,822D3EA4,review,function 822A9E78->822D27A0 ratio 0.79 callers 0/1,hooks_diag_physics.cpp
+822B562C,822DBB28,review,function 822B4D40->822DB248 ratio 0.70 callers 1/1,hooks_framerate.cpp
+822BFDC0,822EE2A0,high,function 822BF268->822ED748 ratio 1.00 callers 0/0,hooks_diag_physics.cpp
+8232BDD8,82360338,high,function 8232BDD8->82360338 ratio 1.00 callers 0/0,hooks_sleep.cpp;host_tuning.cpp
+8232BE20,82360380,high,function 8232BE20->82360380 ratio 1.00 callers 0/0,hooks_sleep.cpp;host_tuning.cpp
+823508F8,822341D0,high,function 823508F8->822341D0 ratio 0.90 callers 121/123,hooks_pc_options.cpp
+8237A240,823B98A0,high,function 8237A240->823B98A0 ratio 1.00 callers 23/23,hooks_intro.cpp
+82388E74,823C8FE4,review,function 82388D90->823C8F00 ratio 0.71 callers 3/3,midasm_hooks.toml
+823F0EB4,8243AE24,high,function 823F0E70->8243ADE0 ratio 0.95 callers 0/0,midasm_hooks.toml
+8248F254,824E20EC,high,function 8248F210->824E20A8 ratio 1.00 callers 0/0,midasm_hooks.toml
+824F9CF8,8255C690,high,"frame-ms li 33 pattern site 0x8255C680 (+0x10), matches matcher",midasm_hooks.toml
+824FB3E4,8255DE24,high,"frame-ms li 33 pattern site 0x8255DE14 (+0x10), matches matcher",midasm_hooks.toml
+82505ED0,82569AF0,high,function 82505CB8->825698D8 ratio 1.00 callers 1/1,midasm_hooks.toml
+82533490,8259CEE8,high,function 82533430->8259CE88 ratio 1.00 callers 0/0,adapter_policy.h
+8253CA78,825A6844,review,function 8253C938->825A66C0 ratio 0.63 callers 0/0,midasm_hooks.toml
+8253EE74,825A8D7C,high,function 8253EE50->825A8D58 ratio 1.00 callers 1/1,midasm_hooks.toml
+8254DB50,825B874C,manual,"LR after pickup-manager bctrl with li r5,0 on the 28(r28) branch; TU has 3 such sites",bridge.cpp
+8254E61C,825B9450,manual,"LR after bl 0x825B8048 (disc 0x8254D558); then lwz 64(r31), was 60",bridge.cpp
+8257AAE8,825E54FC,high,"frame-ms li 33 pattern site, matches matcher",midasm_hooks.toml
+8259A3A8,82605AF8,high,function 8259A330->82605A80 ratio 1.00 callers 0/0,midasm_hooks.toml
+825E120C,82652F6C,high,function 825E11D0->82652F30 ratio 1.00 callers 0/0,midasm_hooks.toml
+8260A068,8267CA80,high,function 8260A068->8267CA80 ratio 1.00 callers 0/0,hooks_pc_options.cpp
+8260A628,8267CF80,high,function 8260A628->8267CF80 ratio 1.00 callers 0/0,hooks_pc_options.cpp
+8261F740,,open,vfs index rewritten in the update; nearest 0x826938E8 (ratio 0.32),hooks_intro.cpp
+8261FC80,,open,global vfs resolve rewritten; nearest 0x82694530 (ratio 0.41),hooks_intro.cpp
+82621990,,open,memory:// mount; no candidate yet,hooks_intro.cpp
+82624120,82696490,high,function 82624120->82696490 ratio 1.00 callers 1/1,hooks_pc_options.cpp
+82624198,82696508,high,function 82624198->82696508 ratio 1.00 callers 1/1,hooks_pc_options.cpp
+82627528,8269A8C0,high,function 82627528->8269A8C0 ratio 1.00 callers 53/53,hooks_pc_options.cpp
+826275A0,8269A938,high,function 826275A0->8269A938 ratio 1.00 callers 1/1,hooks_pc_options.cpp
+82628918,8269BDC0,high,function 82628918->8269BDC0 ratio 0.89 callers 58/59,hooks_pc_options.cpp
+82628A4C,8269BEF4,high,function 82628918->8269BDC0 ratio 0.89 callers 58/59,midasm_hooks.toml
+82628C78,8269C0F0,high,function 82628C78->8269C0F0 ratio 1.00 callers 1/1,hooks_pc_options.cpp
+826298CC,8269CCB4,review,function 82629758->8269CB38 ratio 0.81 callers 4/9,midasm_hooks.toml
+826427FC,826B9BD0,review,function 82642760->826B9B18 ratio 0.80 callers 1/1,adapter_policy.h
+8264284C,826B9C20,review,function 82642760->826B9B18 ratio 0.80 callers 1/1,adapter_policy.h
+826429A0,826B9D84,high,function 82642950->826B9D20 ratio 0.86 callers 1/1,adapter_policy.h
+82651768,826C9DD8,high,function 82651570->826C9BE0 ratio 1.00 callers 0/0,midasm_hooks.toml
+826517CC,826C9E3C,high,function 82651570->826C9BE0 ratio 1.00 callers 0/0,midasm_hooks.toml
+826587F8,826D1A70,high,function 826587F8->826D1A70 ratio 1.00 callers 0/0,hooks_pc_options.cpp
+82658874,826D1AEC,high,function 826587F8->826D1A70 ratio 1.00 callers 0/0,hooks_pc_options.cpp
+82658880,826D1AF8,high,function 826587F8->826D1A70 ratio 1.00 callers 0/0,hooks_pc_options.cpp
+8265ADE4,826D42E8,review,function 8265A738->826D3B38 ratio 0.82 callers 0/0,midasm_hooks.toml
+82661C54,826DBAEC,manual,co-op no-HDD popup gate; 0x826DBACC was the switch dispatch (fixed by the co-op 60 thread; TU Host A Game ran),midasm_hooks.toml
+8266B928,826E6880,high,function 8266B928->826E6880 ratio 1.00 callers 0/0,hooks_pc_options.cpp
+8266B9C4,826E691C,high,function 8266B928->826E6880 ratio 1.00 callers 0/0,hooks_pc_options.cpp
+8266B9FC,826E6954,high,function 8266B928->826E6880 ratio 1.00 callers 0/0,hooks_pc_options.cpp
+82672DD8,826EEFA8,high,function 82672DD8->826EEFA8 ratio 0.94 callers 20/20,hooks_pc_options.cpp
+82678104,826F46EC,review,function 82678010->826F4550 ratio 0.66 callers 0/0,midasm_hooks.toml
+82678768,826F5250,high,function 82678768->826F5250 ratio 1.00 callers 0/0,hooks_pc_options.cpp
+82678C88,826F5770,high,function 82678C88->826F5770 ratio 1.00 callers 0/0,hooks_pc_options.cpp
+8268D318,82711548,review,function 8268D318->82711548 ratio 0.80 callers 4/4,hooks_pc_options.cpp
+8268DC40,827128B8,review,function 8268DC40->827128B8 ratio 0.81 callers 9/9,hooks_pc_options.cpp
+82691308,827167A8,high,function 82691308->827167A8 ratio 0.90 callers 21/21,hooks_pc_options.cpp
+82696898,8271C328,high,function 82696898->8271C328 ratio 0.96 callers 35/35,hooks_pc_options.cpp
+8269B5D8,82722DC8,high,function 8269B5D8->82722DC8 ratio 1.00 callers 10/10,hooks_pc_options.cpp
+8269B620,827836B8,high,function 8269B620->827836B8 ratio 1.00 callers 1/1,hooks_pc_options.cpp
+8269C378,82723C28,high,function 8269C378->82723C28 ratio 1.00 callers 11/11,hooks_pc_options.cpp
+8269C3C0,82723C70,high,function 8269C3C0->82723C70 ratio 1.00 callers 0/0,hooks_pc_options.cpp
+826A6834,8272E9E4,high,function 826A65F0->8272E7A0 ratio 1.00 callers 0/0,hooks_sleep.cpp
+826A7698,8272F7C0,high,function 826A7698->8272F7C0 ratio 1.00 callers 1/1,hooks_framerate.cpp
+826A78DC,8272FA04,high,function 826A7698->8272F7C0 ratio 1.00 callers 1/1,hooks_sleep.cpp
+826A78F4,8272FA1C,high,function 826A7698->8272F7C0 ratio 1.00 callers 1/1,midasm_hooks.toml
+826BCA98,82745E30,high,function 826BCA98->82745E30 ratio 1.00 callers 3/3,hooks_capture.cpp
+826D9790,82762B98,high,function 826D9790->82762B98 ratio 1.00 callers 110/110,hooks_pc_options.cpp
+826E1CA8,8276AF00,high,function 826E1CA8->8276AF00 ratio 1.00 callers 9/9,hooks_pc_options.cpp
+826E1D00,8276AF58,high,function 826E1D00->8276AF58 ratio 1.00 callers 80/80,hooks_pc_options.cpp
+826E7520,827706F0,review,"package open; fuzzy 0.76, callers unmatched",hooks_intro.cpp
+826FA928,82783BB0,high,function 826FA928->82783BB0 ratio 1.00 callers 2/2,hooks_pc_options.cpp
+826FA9E0,82723108,high,function 826FA9E0->82723108 ratio 1.00 callers 20/20,hooks_pc_options.cpp
+826FF708,82788A00,high,function 826FF708->82788A00 ratio 1.00 callers 0/0,hooks_intro.cpp
+82700948,82789CE0,high,function 82700948->82789CE0 ratio 1.00 callers 0/0,hooks_intro.cpp
+82700A60,82789DF8,high,function 82700948->82789CE0 ratio 1.00 callers 0/0,hooks_intro.cpp
+82700A94,82789E2C,high,function 82700948->82789CE0 ratio 1.00 callers 0/0,hooks_intro.cpp
+82742B28,827CBEA8,high,function 82742B28->827CBEA8 ratio 1.00 callers 21/22,hooks_intro.cpp
+82742C78,827CBFF8,high,function 82742B28->827CBEA8 ratio 1.00 callers 21/22,hooks_intro.cpp
+82742D18,827CC098,high,function 82742D18->827CC098 ratio 1.00 callers 39/40,hooks_intro.cpp
+82743788,827CCB08,high,function 82743788->827CCB08 ratio 1.00 callers 13/13,hooks_sleep.cpp
+82743798,827CCB18,high,function 82743798->827CCB18 ratio 1.00 callers 1/1,hooks_input_replay.cpp
+827437C0,827CCB40,high,function 827437C0->827CCB40 ratio 1.00 callers 4/4,hooks_input_replay.cpp
+82743DF0,827CD1B8,high,function 82743DF0->827CD1B8 ratio 1.00 callers 18/18,hooks_intro.cpp
+82744760,827CDB28,high,function 82744760->827CDB28 ratio 1.00 callers 1/1,hooks_coop_trace.cpp
+827457E8,827CECB8,high,function 827457E8->827CECB8 ratio 1.00 callers 1/1,hooks_storage.cpp
+82746010,827CF4E0,high,function 82746010->827CF4E0 ratio 1.00 callers 33/33,hooks_intro.cpp
+82746520,827CF9F0,high,function 82746520->827CF9F0 ratio 1.00 callers 0/0,hooks_sleep.cpp
+8285CE30,828E9A40,high,function 8285CA20->828E9630 ratio 1.00 callers 2/2,midasm_hooks.toml
+829292F8,829B23C8,high,function 829292F8->829B23C8 ratio 1.00 callers 0/0,hooks_coop_trace.cpp
+829293C0,829B2490,high,function 829293C0->829B2490 ratio 1.00 callers 2/2,hooks_coop_trace.cpp
+829293D0,829B24A0,high,function 829293D0->829B24A0 ratio 1.00 callers 1/1,hooks_coop_trace.cpp
+829293E0,829B24B0,high,function 829293E0->829B24B0 ratio 1.00 callers 4/4,hooks_coop_trace.cpp
+829293F0,829B24C0,high,function 829293F0->829B24C0 ratio 1.00 callers 3/3,hooks_coop_trace.cpp
+82929400,829B24D0,high,function 82929400->829B24D0 ratio 1.00 callers 5/5,hooks_coop_trace.cpp
+82929418,829B24E8,high,function 82929418->829B24E8 ratio 1.00 callers 1/1,hooks_coop_trace.cpp
+82929430,829B2500,high,function 82929430->829B2500 ratio 1.00 callers 1/1,hooks_coop_trace.cpp
+82929448,829B2518,high,function 82929448->829B2518 ratio 1.00 callers 1/1,hooks_coop_trace.cpp
+82929460,829B2530,high,function 82929460->829B2530 ratio 1.00 callers 3/3,hooks_coop_trace.cpp
+82929470,829B2540,high,function 82929470->829B2540 ratio 1.00 callers 3/3,hooks_coop_trace.cpp
+82929480,829B2550,high,function 82929480->829B2550 ratio 1.00 callers 1/1,hooks_coop_trace.cpp
+829294A0,829B2570,high,function 829294A0->829B2570 ratio 1.00 callers 1/1,hooks_coop_trace.cpp
+82929508,829B25D8,high,function 82929508->829B25D8 ratio 1.00 callers 2/2,hooks_coop_trace.cpp
+82929518,829B25E8,high,function 82929518->829B25E8 ratio 1.00 callers 2/2,hooks_coop_trace.cpp
+82929528,829B25F8,high,function 82929528->829B25F8 ratio 1.00 callers 0/0,hooks_coop_trace.cpp
+829295E0,829B26B0,high,function 829295E0->829B26B0 ratio 1.00 callers 8/8,hooks_coop_trace.cpp
+829295F8,829B26C8,high,function 829295F8->829B26C8 ratio 1.00 callers 9/9,hooks_coop_trace.cpp
+82929608,829B26D8,high,function 82929608->829B26D8 ratio 1.00 callers 1/1,hooks_coop_trace.cpp
+82929618,829B26E8,high,function 82929618->829B26E8 ratio 1.00 callers 6/6,hooks_coop_trace.cpp
+82929630,829B2700,high,function 82929630->829B2700 ratio 1.00 callers 4/4,hooks_coop_trace.cpp
+82929650,829B2720,high,function 82929650->829B2720 ratio 1.00 callers 1/1,hooks_coop_trace.cpp
+82929670,829B2740,high,function 82929670->829B2740 ratio 1.00 callers 1/1,hooks_coop_trace.cpp
+82929688,829B2758,high,function 82929688->829B2758 ratio 1.00 callers 1/1,hooks_coop_trace.cpp
+829296A0,829B2770,high,function 829296A0->829B2770 ratio 1.00 callers 6/6,hooks_coop_trace.cpp
+829296B8,829B2788,high,function 829296B8->829B2788 ratio 1.00 callers 4/4,hooks_coop_trace.cpp
+829296D0,829B27A0,high,function 829296D0->829B27A0 ratio 1.00 callers 3/3,hooks_coop_trace.cpp
+829296E0,829B27B0,high,function 829296E0->829B27B0 ratio 1.00 callers 3/3,hooks_coop_trace.cpp
+829296F8,829B27C8,high,function 829296F8->829B27C8 ratio 1.00 callers 5/5,hooks_coop_trace.cpp
+82929718,829B27E8,high,function 82929718->829B27E8 ratio 1.00 callers 4/4,hooks_coop_trace.cpp
+82929730,829B2800,high,function 82929730->829B2800 ratio 1.00 callers 3/3,hooks_coop_trace.cpp
+82929750,829B2820,high,function 82929750->829B2820 ratio 1.00 callers 4/4,hooks_coop_trace.cpp
+82929768,829B2838,high,function 82929768->829B2838 ratio 1.00 callers 3/3,hooks_coop_trace.cpp
+82929788,829B2858,high,function 82929788->829B2858 ratio 1.00 callers 2/2,hooks_coop_trace.cpp
+829297A0,829B2870,high,function 829297A0->829B2870 ratio 1.00 callers 1/1,hooks_coop_trace.cpp
+829297A8,829B2878,high,function 829297A8->829B2878 ratio 1.00 callers 16/16,hooks_coop_trace.cpp
+829297B0,829B2880,high,function 829297B0->829B2880 ratio 1.00 callers 1/1,hooks_coop_trace.cpp
+829297B8,829B2888,high,function 829297B8->829B2888 ratio 1.00 callers 1/1,hooks_coop_trace.cpp
+829297C0,829B2890,high,function 829297C0->829B2890 ratio 1.00 callers 1/1,hooks_coop_trace.cpp
+829297C8,829B2898,high,function 829297C8->829B2898 ratio 1.00 callers 4/4,hooks_coop_trace.cpp
+8292A9B8,829B3A88,high,function 8292A9B8->829B3A88 ratio 1.00 callers 1/1,hooks_coop_trace.cpp
+8292ABF8,829B3CC8,high,function 8292ABF8->829B3CC8 ratio 1.00 callers 1/1,hooks_coop_trace.cpp
+8292ACA0,829B3D70,high,function 8292ACA0->829B3D70 ratio 1.00 callers 1/1,hooks_coop_trace.cpp
+8292AF70,829B4040,high,function 8292AF70->829B4040 ratio 1.00 callers 1/1,hooks_coop_trace.cpp
+8292B008,829B40D8,high,function 8292B008->829B40D8 ratio 1.00 callers 1/1,hooks_coop_trace.cpp
+8292B0B8,829B4188,high,function 8292B0B8->829B4188 ratio 1.00 callers 1/1,hooks_coop_trace.cpp
+82940000,829C8E50,high,function 8293FFE0->829C8E30 ratio 1.00 callers 0/0,hooks_diag_physics.cpp
+82986B40,82A0FA90,high,function 82986B40->82A0FA90 ratio 1.00 callers 7/7,hooks_diag_physics.cpp
+829D37D0,82A5C778,high,function 829D37D0->82A5C778 ratio 1.00 callers 4/4,hooks_diag_physics.cpp
+82A00000,82A88F60,high,function 829FFFF4->82A88F54 ratio 1.00 callers 0/0,hooks_diag_physics.cpp
+82A49AC0,82AD2A18,high,function 82A49AC0->82AD2A18 ratio 1.00 callers 10/10,hooks_diag_audio.cpp
+82A4A030,82AD2F88,high,function 82A4A030->82AD2F88 ratio 1.00 callers 5/5,hooks_diag_audio.cpp
+82A4FA70,821512C0,high,function 82A4FA70->821512C0 ratio 1.00 callers 1/1,hooks_events.cpp
+82A50000,82AD8EB8,high,function 82A50000->82AD8EB8 ratio 1.00 callers 1/1,hooks_xaudio.cpp
+82A53690,82ADC550,high,function 82A53690->82ADC550 ratio 1.00 callers 1/1,hooks_diag_audio.cpp
+82A536B4,82ADC574,high,function 82A53690->82ADC550 ratio 1.00 callers 1/1,hooks_diag_audio.cpp
+82A536B8,82ADC578,high,function 82A53690->82ADC550 ratio 1.00 callers 1/1,hooks_diag_audio.cpp
+82A53748,82ADC608,high,function 82A53690->82ADC550 ratio 1.00 callers 1/1,hooks_diag_audio.cpp
+82A53770,82ADC630,high,function 82A53770->82ADC630 ratio 1.00 callers 2/2,hooks_diag_audio.cpp
+82A53B18,82ADC9D8,high,function 82A53B18->82ADC9D8 ratio 1.00 callers 1/1,hooks_diag_audio.cpp
+82A53DE8,82ADCCA8,high,function 82A53DE8->82ADCCA8 ratio 1.00 callers 1/1,hooks_diag_audio.cpp
+82A8ED90,82B18540,high,function 82A8ED90->82B18540 ratio 1.00 callers 1/1,hooks_coop_trace.cpp
+82A8F034,82B187E4,high,function 82A8ED90->82B18540 ratio 1.00 callers 1/1,hooks_coop_trace.cpp
+82A8F058,82B18808,high,function 82A8ED90->82B18540 ratio 1.00 callers 1/1,hooks_coop_trace.cpp
+82AB9D98,82B43420,high,function 82AB9D98->82B43420 ratio 1.00 callers 75/75,hooks_pc_options.cpp
+82B67074,82BF178C,high,import thunk XamInputGetState (by name in register.cpp),hooks_input_replay.cpp
+82B67094,82BF17AC,high,import thunk XamInputGetKeystrokeEx (by name in register.cpp),hooks_input_replay.cpp
+82B673B4,82BF1A6C,high,import thunk NtCreateFile (by name in register.cpp),hooks_intro.cpp
+82B673C4,82BF1A7C,high,import thunk RtlInitAnsiString (by name in register.cpp),hooks_intro.cpp
+82B67E64,82BF250C,high,import thunk XMAReleaseContext (by name in register.cpp),hooks_diag_audio.cpp
+82B67E74,82BF251C,high,import thunk XMACreateContext (by name in register.cpp),hooks_diag_audio.cpp
+82BAA330,82C3A9A4,data,data reference vote,hooks_framerate.cpp;hooks_sleep.cpp;host_tuning.cpp;host_tuning.h
+82C63578,,open,data: map by use or import name,hooks_framerate.cpp;host_tuning.cpp
+82CFE4B4,,open,data: map by use or import name,hooks_framerate.cpp;host_tuning.cpp
+82CFF2B4,82D927E0,data,data reference vote,hooks_framerate.cpp
+82D99228,,open,data: map by use or import name,hooks_framerate.cpp;midasm_hooks.toml
+82DE25C0,82E79A14,data,data reference vote,hooks_framerate.cpp;host_tuning.cpp;midasm_hooks.toml
+82DE2678,82E79AD4,data,data reference vote,bridge.cpp
+82DE267C,82E79AD8,data,data reference vote,ap_probe.cpp
+82DE27F4,82E79C54,data,data reference vote,ap_probe.cpp;bridge.cpp
+82DE3F34,82E7B3D4,data,data reference vote,ap_probe.cpp;bridge.cpp
+82DE3F3C,82E7B3DC,data,data reference vote,ap_probe.cpp;bridge.cpp
+82DE3F9A,82E7B445,data,data reference vote,hooks_storage.cpp;midasm_hooks.toml
+82DE3FB0,82E7B447,data,data reference vote,hooks_framerate.cpp;midasm_hooks.toml
+8306BBFC,83090ACC,data,data reference vote,ap_probe.cpp
+835D3F84,835FB7EC,data,data reference vote,ap_probe.cpp;bridge.cpp

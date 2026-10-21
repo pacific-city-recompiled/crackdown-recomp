@@ -1,0 +1,47 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Jerrod <jerrod.uno@gmail.com>
+Date: Mon, 20 Oct 2026 01:15:00 -0400
+Subject: [PATCH] system: --xex_patch, apply an XEX patch from a given guest path
+
+The runtime applies default.xexp from next to default.xex. The Crackdown
+title-update build needs Title Update #6 applied while the disc build,
+which shares the game folder, must not see it. --xex_patch names the
+patch's guest path instead (e.g. update:\default.xexp with
+--update_data_root pointing at the unpacked update); a missing file fails
+the load. The patch file's own load skips the lookup (it used to find no
+sibling; with an override it would recurse). Unset, nothing changes.
+
+Host paths only; no guest code touched. Checked on the PC 2026-10-20:
+crackdown_tu with the disc game folder and title-update\ next to the exe
+logs "XEX patch applied successfully: 0.0.0.1 -> 0.0.6.1", mounts both
+DLC packs and plays Keys to the City (62.0 fps avg over 30 s).
+---
+diff --git a/src/system/user_module.cpp b/src/system/user_module.cpp
+index 171546f..e2931ee 100644
+--- a/src/system/user_module.cpp
++++ b/src/system/user_module.cpp
+@@ -24,0 +25,5 @@
++#include <rex/string/utf8.h>
++
++REXCVAR_DEFINE_STRING(xex_patch, "", "Runtime",
++                      "Guest path of the XEX patch (.xexp) to apply to the main module, e.g. "
++                      "update:\\default.xexp; empty = default.xexp next to the XEX");
+@@ -105,2 +110,16 @@ X_STATUS UserModule::LoadFromFile(const std::string_view path) {
+-  // Search for sibling XEX patch file
+-  auto patch_entry = kernel_state_->file_system()->ResolvePath(path_ + "p");
++  // Search for sibling XEX patch file, or the one --xex_patch names (a guest
++  // path such as update:\default.xexp) so a title update can live outside the
++  // game folder that an unpatched build also reads.
++  // The patch itself loads through here too; it never gets a patch.
++  const bool is_patch_file =
++      path_.size() >= 5 && rex::string::utf8_lower_ascii(path_.substr(path_.size() - 5)) == ".xexp";
++  if (is_patch_file) {
++    return LoadXexContinue();
++  }
++  const std::string& patch_override = REXCVAR_GET(xex_patch);
++  auto patch_entry = kernel_state_->file_system()->ResolvePath(
++      patch_override.empty() ? path_ + "p" : patch_override);
++  if (!patch_entry && !patch_override.empty()) {
++    REXSYS_ERROR("--xex_patch {} not found", patch_override);
++    return X_STATUS_UNSUCCESSFUL;
++  }

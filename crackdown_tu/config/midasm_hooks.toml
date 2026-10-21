@@ -1,0 +1,117 @@
+# Mid-asm hooks at Title Update #6 addresses. Same host functions and registers as
+# crackdown/config/midasm_hooks.toml (names keep the disc address); each update address is the
+# same instruction with the same register (checked in the update disassembly, docs/tu-address-map.csv).
+
+[[midasm_hook]]
+address = 0x822AE220
+name = "CrackdownFrameMs_82287170"
+registers = ["r11"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x823C8FE4
+name = "CrackdownFrameMs_82388E74"
+registers = ["r9"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x8243AE24
+name = "CrackdownFrameMs_823F0EB4"
+registers = ["r11"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x824E20EC
+name = "CrackdownFrameMs_8248F254"
+registers = ["r11"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x8255C690
+name = "CrackdownFrameMs_824F9CF8"
+registers = ["r10"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x8255DE24
+name = "CrackdownFrameMs_824FB3E4"
+registers = ["r10"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x82569AF0
+name = "CrackdownFrameMs_82505ED0"
+registers = ["r9"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x825E54FC
+name = "CrackdownFrameMs_8257AAE8"
+registers = ["r11"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x82605AF8
+name = "CrackdownFrameMs_8259A3A8"
+registers = ["r11"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x82652F6C
+name = "CrackdownFrameMs_825E120C"
+registers = ["r27"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x826C9DD8
+name = "CrackdownFrameMs_82651768"
+registers = ["r11"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x826C9E3C
+name = "CrackdownFrameMs_826517CC"
+registers = ["r11"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x8272FA1C
+name = "CrackdownFrameMs_826A78F4"
+registers = ["r11"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x82559004
+name = "CrackdownFrameMs_TU_82559004"
+registers = ["r10"]
+after_instruction = true
+
+# Audio wave timeout tick (disc 0x8225B254, same `addi r11,r11,1`).
+[[midasm_hook]]
+address = 0x8227FFC4
+name = "CrackdownAudioTimeoutTick"
+registers = ["r11", "r30"]
+after_instruction = true
+
+# Co-op HDD gate (disc 0x8265ADE4; same `lbz r11,...` of the HDD flag)
+[[midasm_hook]]
+address = 0x826D42E8
+name = "CrackdownCoopHdd_8265ADE4"
+registers = ["r11"]
+after_instruction = true
+
+# Co-op HDD gate (disc 0x82661C54): `lis r11,-32024; lbz r11,-19387(r11)` at
+# loc_826DBAE8, the no-HDD popup check before "Host A Game" (0x826DBACC was the
+# switch dispatch above it, so no hook was emitted; coop60 TU run 2026-10-20)
+[[midasm_hook]]
+address = 0x826DBAEC
+name = "CrackdownCoopHdd_82661C54"
+registers = ["r11"]
+after_instruction = true
+
+# Co-op HDD gate (disc 0x82678104; same `lbz r11,...` of the HDD flag)
+[[midasm_hook]]
+address = 0x826F46EC
+name = "CrackdownCoopHdd_82678104"
+registers = ["r11"]
+after_instruction = true

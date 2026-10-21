@@ -1,4 +1,5 @@
 #include "generated/default/crackdown_init.h"
+#include "game_addresses.h"
 #include "pc_options.h"
 #include "pc_settings.h"
 #include "xui_patch.h"
@@ -43,7 +44,7 @@ uint32_t FindChild(const PPCContext& ctx, uint8_t* base, uint32_t parent, std::u
   call.r3.u64 = parent;
   call.r4.u64 = text;
   call.r5.u64 = out;
-  sub_826E1D00(call, base);
+  CD_SUB(826E1D00, 8276AF58)(call, base);
   return call.r3.s32 < 0 ? 0 : REX_LOAD_U32(out);
 }
 
@@ -52,7 +53,7 @@ uint32_t ElementId(const PPCContext& ctx, uint8_t* base) {
   const auto out = call.r1.u32 + 80;
   REX_STORE_U32(out, 0);
   call.r4.u64 = out;
-  sub_826E1CA8(call, base);
+  CD_SUB(826E1CA8, 8276AF00)(call, base);
   return call.r3.s32 < 0 ? 0 : REX_LOAD_U32(out);
 }
 std::string LogId(uint8_t* base, uint32_t id) {
@@ -71,7 +72,7 @@ std::string LogId(uint8_t* base, uint32_t id) {
 // 0x826275A0 (.43.cpp:70496): "stw r11,128(r31)" id, "stw r5,132(r31)" scene.
 uint32_t TopScreen(const PPCContext& ctx, uint8_t* base) {
   auto call = SideCall(ctx, base);
-  sub_823508F8(call, base);
+  CD_SUB(823508F8, 822341D0)(call, base);
   const auto manager = call.r3.u32;
   if (!manager) return 0;
   const auto begin = REX_LOAD_U32(manager + 40), end = REX_LOAD_U32(manager + 44);
@@ -85,7 +86,7 @@ void SetSelection(const PPCContext& ctx, uint8_t* base, uint32_t handle, int sel
   auto call = SideCall(ctx, base);
   call.r3.u64 = handle;
   call.r4.s64 = selection;
-  sub_8269B5D8(call, base);
+  CD_SUB(8269B5D8, 82722DC8)(call, base);
   setting_selection = previous;
 }
 
@@ -110,7 +111,7 @@ void NotifySettings(const PPCContext& ctx, uint8_t* base) {
     const auto setting = static_cast<crackdown::PCSetting>(i);
     if (!GuestIdEquals(base, id, crackdown::PCSettingId(setting))) continue;
     auto call = SideCall(ctx, base);
-    sub_8269C378(call, base);
+    CD_SUB(8269C378, 82723C28)(call, base);
     const auto selection = call.r3.s32;
     if (selection < 0 || selection >= crackdown::PCSettingChoices(setting)) return;
     try {
@@ -145,16 +146,16 @@ void SetPCMenuQuitAction(std::function<bool()> quit) {
 // "li r4,76", "bl 0x82628918", "li r3,1". Parent r7 is explicitly NULL.
 // We change only the new Id's mode to 2 and otherwise reproduce that setup.
 // Confirmed on the PC 2026-10-12 (log crackdown_002; receipt in docs/pc-options.md).
-REX_HOOK_RAW(sub_8269C3C0) {
+CD_HOOK_RAW(CD_SUB(8269C3C0, 82723C70)) {
   if (!crackdown::PCMenuGuestPath() || !ctx.r3.u32 || !ctx.r4.u32 ||
       (REX_LOAD_U32(ctx.r4.u32 + 4) != 2021 && REX_LOAD_U32(ctx.r4.u32 + 4) != 14)) {
-    __imp__sub_8269C3C0(ctx, base);
+    CD_IMP(8269C3C0, 82723C70)(ctx, base);
     return;
   }
   if (REX_LOAD_U32(ctx.r4.u32 + 4) == 14) {
     NotifySettings(ctx, base);
     // Keep native notification propagation and Back processing untouched.
-    __imp__sub_8269C3C0(ctx, base);
+    CD_IMP(8269C3C0, 82723C70)(ctx, base);
     return;
   }
   const uint32_t message = ctx.r4.u32;
@@ -162,14 +163,14 @@ REX_HOOK_RAW(sub_8269C3C0) {
   const uint32_t id = ElementId(ctx, base);
   if (GuestIdEquals(base, id, u"quitGame")) {
     call = SideCall(ctx, base);
-    sub_8268D318(call, base);
+    CD_SUB(8268D318, 82711548)(call, base);
     REX_STORE_U32(call.r3.u32 + 4, 2);
-    sub_823508F8(call, base);
-    call.r4.s64 = 76;
+    CD_SUB(823508F8, 822341D0)(call, base);
+    call.r4.s64 = CD_ADDR(76, 81);  // Quit confirmation screen (the update adds 5 screens before it)
     call.r5.s64 = 0;
     call.r6.s64 = 0;
     call.r7.s64 = 0;
-    sub_82628918(call, base);
+    CD_SUB(82628918, 8269BDC0)(call, base);
     REXLOG_INFO("pc menu: quitGame -> confirmation (screen 76, mode 2)");
   } else if (GuestIdEquals(base, id, u"pcSettings")) {
     // Tab1 Display callback 0x82678C88 (.46.cpp:26622): "bl 0x8268dc40",
@@ -177,17 +178,17 @@ REX_HOOK_RAW(sub_8269C3C0) {
     // "li r5,0", "li r4,74", "bl 0x82628918". Replace only id with 26.
     // Native screen route is unverified at runtime (milestone 2).
     call = SideCall(ctx, base);
-    sub_8268DC40(call, base);
+    CD_SUB(8268DC40, 827128B8)(call, base);
     const auto parent = REX_LOAD_U32(call.r3.u32 + 4);
-    sub_823508F8(call, base);
+    CD_SUB(823508F8, 822341D0)(call, base);
     call.r4.s64 = 26;
     call.r5.s64 = 0;
     call.r6.s64 = 0;
     call.r7.u64 = parent;
-    sub_82628918(call, base);
+    CD_SUB(82628918, 8269BDC0)(call, base);
     REXLOG_INFO("pc menu: pcSettings -> native PC Settings (screen 26)");
   } else {
-    __imp__sub_8269C3C0(ctx, base);
+    CD_IMP(8269C3C0, 82723C70)(ctx, base);
     return;
   }
   REX_STORE_U32(message + 8, 1);
@@ -202,9 +203,9 @@ REX_HOOK_RAW(sub_8269C3C0) {
 // 0x8269B5D8 (.47.cpp:30069): "mr r31,r3", "mr r5,r4", "bl 0x8269b620",
 // "mr r3,r31", "bl 0x826d9790" sends XM 2008 with the selection index.
 // New initial-selection behavior is unverified at runtime (milestone 2).
-REX_HOOK_RAW(sub_8266B928) {
+CD_HOOK_RAW(CD_SUB(8266B928, 826E6880)) {
   const uint32_t object = ctx.r3.u32;
-  __imp__sub_8266B928(ctx, base);
+  CD_IMP(8266B928, 826E6880)(ctx, base);
   if (!crackdown::PCSceneGuestPath() || !object) return;
   const auto scene = REX_LOAD_U32(object + 132);
   if (!scene) return;
@@ -232,15 +233,15 @@ REX_HOOK_RAW(sub_8266B928) {
 // Only mode 2 while the mod is active queues Window::RequestClose on the UI
 // thread, reusing ReXApp::OnClosing -> TerminateTitle -> FlushLogging -> _Exit.
 // Confirmed on the PC 2026-10-12 (log crackdown_002; receipt in docs/pc-options.md).
-REX_HOOK_RAW(sub_826587F8) {
+CD_HOOK_RAW(CD_SUB(826587F8, 826D1A70)) {
   if (crackdown::PCMenuGuestPath()) {
     auto call = SideCall(ctx, base);
-    sub_8268D318(call, base);
+    CD_SUB(8268D318, 82711548)(call, base);
     if (REX_LOAD_U32(call.r3.u32 + 4) == 2 && request_quit && request_quit()) {
       REXLOG_INFO("pc menu: confirmed Quit to Desktop; window close queued");
       ctx.r3.s64 = 1;
       return;
     }
   }
-  __imp__sub_826587F8(ctx, base);
+  CD_IMP(826587F8, 826D1A70)(ctx, base);
 }

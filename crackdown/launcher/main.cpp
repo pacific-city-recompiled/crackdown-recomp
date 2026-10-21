@@ -126,6 +126,8 @@ int main(int argc,char** argv) {
   fs::file_time_type log_since{};
   CoopSettings coop; char coop_own[64]{},coop_partner[64]{}; std::string coop_error; std::vector<std::string> coop_addresses;
   std::vector<ContentPack> dlc_packs;  // installed DLC of the selected game (gp->dlc)
+  bool use_title_update=true;  // Crackdown 1: start the title update build once its update is installed
+  auto update_exe_ready=[&] { return gp->update_exe&&fs::is_regular_file(ghome/gp->update_exe)&&fs::is_regular_file(ghome/"tu"/"default.xexp"); };
   fs::path user; bool portable=false; std::vector<std::string> profiles; std::string profile; char new_profile[48]{};
   try {
     auto probe=home/(".launcher-write-"+std::to_string(SDL_GetTicks()));
@@ -173,6 +175,7 @@ int main(int argc,char** argv) {
     int lh=std::clamp(static_cast<int>(value<int64_t>(prefs,"launcher_height",int(720*initial_dpi))),600,2160);
     SDL_SetWindowSize(window,lw,lh);
     close_on_play=value<bool>(prefs,"close_on_play",false);
+    use_title_update=value<bool>(prefs,"cd1_title_update",true);
   } catch(const std::exception& e) { error=e.what(); }
   // Save root and profile of the selected game; rerun when the game changes.
   auto read_user=[&] {
@@ -223,7 +226,7 @@ int main(int argc,char** argv) {
       task.thread=std::thread([&,path,job,g=*gp,folder=ghome,disc=game,saves=user] {
         try {
           auto progress=[&task,started=false](uint64_t n,uint64_t total) mutable { if(!started) { task.message("Unpacking and checking every block..."); started=true; } task.bytes=n; task.total=total; };
-          std::string title=job==Job::title_update?install_content_update(path,folder,disc,g.title_id,g.update_xexp,task.cancel,progress)
+          std::string title=job==Job::title_update?install_content_update(path,folder,disc,g.title_id,g.update_xexp,task.cancel,progress,!g.update_exe)
 :[&]{ auto pack=install_content_dlc(path,saves,g.title_id,task.cancel,progress);
                                                        return pack.damaged_blocks?pack.title+" ("+std::to_string(pack.damaged_blocks)+" damaged block(s) in this dump, kept as they are)":pack.title; }();
           std::lock_guard lock(task.mutex); task.status=title+" installed."; task.success=true;
@@ -355,7 +358,11 @@ int main(int argc,char** argv) {
       // The game reads the password from the profile's connection.toml itself.
       if(!profile.empty()) save_ap();
       auto extra=ap_args(profile.empty()?ApConnection{}:ap); args.insert(args.end(),extra.begin(),extra.end());
-      process.start(ghome,args,gp->exe); error.clear(); crash.clear(); if(close_on_play) quit=true;
+      // Crackdown 1 with Title Update #6 (Keys to the City, Street Racing): its own exe, the update from tu/.
+      // Archipelago runs on the disc exe only (the bridge isn't ported to the update).
+      const char* exe=gp->exe;
+      if(update_exe_ready()&&use_title_update&&extra.empty()) { exe=gp->update_exe; args.push_back("--update_data_root="+utf8(ghome/"tu")); }
+      process.start(ghome,args,exe); error.clear(); crash.clear(); if(close_on_play) quit=true;
     } catch(const std::exception& e) { error=e.what(); verified=false; visuals->clear_art(); }
   };
   auto save_profile=[&](const std::string& name) {
@@ -530,7 +537,13 @@ int main(int argc,char** argv) {
         bool needs_update=gp->title_update&&verified&&!fs::is_regular_file(game/"default.xexp");
         if(needs_update) { if(menu("INSTALL TITLE UPDATE",!blocked)) { package_kind=1; show_dialog(Dialog::package); } }
         else if(menu(process.running()?"PLAYING...":verified?"PLAY":"INSTALL GAME",!blocked&&!manifest.empty())) { if(verified) launch(); else show_dialog(Dialog::install); }
+        if(gp->update_exe&&verified&&!update_exe_ready()&&menu("INSTALL TITLE UPDATE",!blocked)) { package_kind=1; show_dialog(Dialog::package); }
         if(gp->dlc&&verified&&menu("INSTALL DLC",!blocked)) { package_kind=2; show_dialog(Dialog::package); }
+        if(update_exe_ready()) {
+          if(ImGui::Checkbox("Play with the title update (Keys to the City, Street Racing)",&use_title_update)) {
+            try { update_config(preferences,{{"cd1_title_update",use_title_update?std::nullopt:std::optional<std::string>("false")}}); } catch(const std::exception& e) { error=e.what(); }
+          }
+        }
         if(menu("VERIFY GAME FILES",!blocked&&!manifest.empty()&&fs::is_directory(game))) { visuals->clear_art(); begin(game,Job::full_check); busy=true; error.clear(); focus_page=true; }
         if(menu("CHECK FOR UPDATES",!online.busy)) { show_dialog(Dialog::updates); check_updates(); }
         if(menu("SETTINGS")) { tab=1; focus_page=true; }
@@ -849,7 +862,9 @@ int main(int argc,char** argv) {
       } else if(dialog==Dialog::package) {
         ImGui::TextUnformatted(package_kind==1?"INSTALL TITLE UPDATE":"INSTALL DLC");
         ImGui::TextWrapped(package_kind==1
-          ?"Select %s's title update package (a file named like TU_16L625S_0000004000000.0000000000181, from a console's Content\\0000000000000000\\<title id>\\000B0000 folder). The launcher checks it, puts default.xexp next to the game's default.xex and unpacks the rest into tu\\. The package itself is kept."
+          ?(gp->update_exe
+              ?"Select %s's Title Update #6 package (TU_16L61US_0000004000000.00000000001G1, from a console's Content\\0000000000000000\\4D5307DC\\000B0000 folder). The launcher checks it and unpacks it into tu\\; Play then starts the title update build, which the Free-For-All Pack (Keys to the City, Street Racing) needs. The package itself is kept."
+              :"Select %s's title update package (a file named like TU_16L625S_0000004000000.0000000000181, from a console's Content\\0000000000000000\\<title id>\\000B0000 folder). The launcher checks it, puts default.xexp next to the game's default.xex and unpacks the rest into tu\\. The package itself is kept.")
           :"Select a %s DLC package (from a console's Content\\0000000000000000\\<title id>\\00000002 folder; keep its original file name). It is unpacked once into your save folder and every profile can use it. The package itself is kept.",gp->title);
         modal_focus();
         if(ImGui::Button("Browse files")) { folder_browser=false; browse=ghome; refresh_browser(); dialog=Dialog::browser; dialog_focus=true; }

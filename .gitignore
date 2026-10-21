@@ -3,6 +3,7 @@
 *.zip
 *.xex
 game/
+game-tu/
 extracted/
 
 # Generated recomp output (reproducible from the user's own default.xex)
@@ -25,3 +26,6 @@ crackdown/bench/
 *.xus
 __pycache__/
 *.py[cod]
+
+# DLC packages (user-supplied, never commit)
+DLC/

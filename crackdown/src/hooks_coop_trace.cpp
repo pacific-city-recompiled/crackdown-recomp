@@ -2,9 +2,11 @@
 // recorded in docs/coop-evidence.md. The stock guest implementation runs once.
 // Raw keys and packet payloads are never written. net_trace lives in the SDK.
 #include "generated/default/crackdown_init.h"
+#include "game_addresses.h"
 #include <rex/hook.h>
 #include <rex/system/xthread.h>
 #include <rex/system/coop_network_context.h>
+#include <atomic>
 #include <chrono>
 #include <fstream>
 #include <map>
@@ -137,65 +139,92 @@ void End() {
   inflight.erase(rex::system::XThread::GetCurrentThreadId());
 }
 }
-#define COOP_TRACE_WRAPPER(function,operation,pc) \
-REX_HOOK_RAW(function) { \
-  if (!REXCVAR_GET(net_trace)) { __imp__##function(ctx,base); return; } \
+// disc/tu: the NetDll wrapper's address in each version (same import called; docs/tu-address-map.csv).
+#define COOP_TRACE_WRAPPER(disc,tu,operation) \
+CD_HOOK_RAW(CD_SUB(disc,tu)) { \
+  constexpr uint32_t pc=CD_ADDR(0x##disc,0x##tu); \
+  if (!REXCVAR_GET(net_trace)) { CD_IMP(disc,tu)(ctx,base); return; } \
   const uint32_t caller=uint32_t(ctx.lr); \
   const uint32_t args[]={ctx.r3.u32,ctx.r4.u32,ctx.r5.u32,ctx.r6.u32,ctx.r7.u32,ctx.r8.u32,ctx.r9.u32,ctx.r10.u32}; \
   MaybeTrace(operation " enter",pc,caller,args,0,0); \
   Begin(operation,pc,caller,args); \
-  __imp__##function(ctx,base); \
+  CD_IMP(disc,tu)(ctx,base); \
   End(); \
   auto thread=rex::system::XThread::GetCurrentThread(); \
   MaybeTrace(operation " return",pc,caller,args,ctx.r3.u32,thread?thread->last_error():0); \
 }
-COOP_TRACE_WRAPPER(sub_82929670,"NetDll_getsockname",0x82929670)
-COOP_TRACE_WRAPPER(sub_829297C0,"NetDll_WSAWaitForMultipleEvents",0x829297C0)
-COOP_TRACE_WRAPPER(sub_82929448,"NetDll_XNetInAddrToString",0x82929448)
-COOP_TRACE_WRAPPER(sub_82929630,"NetDll_setsockopt",0x82929630)
-COOP_TRACE_WRAPPER(sub_829293D0,"NetDll_XNetCreateKey",0x829293D0)
-COOP_TRACE_WRAPPER(sub_82929508,"NetDll_XNetQosRelease",0x82929508)
-COOP_TRACE_WRAPPER(sub_829296A0,"NetDll_bind",0x829296A0)
-COOP_TRACE_WRAPPER(sub_82929470,"NetDll_XNetGetConnectStatus",0x82929470)
-COOP_TRACE_WRAPPER(sub_82929650,"NetDll_getsockopt",0x82929650)
-COOP_TRACE_WRAPPER(sub_829296D0,"NetDll_listen",0x829296D0)
-COOP_TRACE_WRAPPER(sub_829297B8,"NetDll_WSACloseEvent",0x829297B8)
-COOP_TRACE_WRAPPER(sub_829292F8,"NetDll_XNetStartup",0x829292F8)
-COOP_TRACE_WRAPPER(sub_829293E0,"NetDll_XNetRegisterKey",0x829293E0)
-COOP_TRACE_WRAPPER(sub_82929528,"NetDll_WSAStartup",0x82929528)
-COOP_TRACE_WRAPPER(sub_82929418,"NetDll_XNetServerToInAddr",0x82929418)
-COOP_TRACE_WRAPPER(sub_82929608,"NetDll_shutdown",0x82929608)
-COOP_TRACE_WRAPPER(sub_82929788,"NetDll_WSAEventSelect",0x82929788)
-COOP_TRACE_WRAPPER(sub_82929430,"NetDll_XNetInAddrToXnAddr",0x82929430)
-COOP_TRACE_WRAPPER(sub_82929618,"NetDll_ioctlsocket",0x82929618)
-COOP_TRACE_WRAPPER(sub_829297B0,"NetDll_WSACreateEvent",0x829297B0)
-COOP_TRACE_WRAPPER(sub_82929400,"NetDll_XNetXnAddrToInAddr",0x82929400)
-COOP_TRACE_WRAPPER(sub_829295E0,"NetDll_socket",0x829295E0)
-COOP_TRACE_WRAPPER(sub_829297A0,"NetDll_inet_addr",0x829297A0)
-COOP_TRACE_WRAPPER(sub_82929518,"NetDll_XNetGetTitleXnAddr",0x82929518)
-COOP_TRACE_WRAPPER(sub_829296B8,"NetDll_connect",0x829296B8)
-COOP_TRACE_WRAPPER(sub_829296E0,"NetDll_accept",0x829296E0)
-COOP_TRACE_WRAPPER(sub_829293F0,"NetDll_XNetUnregisterKey",0x829293F0)
-COOP_TRACE_WRAPPER(sub_82929480,"NetDll_XNetQosListen",0x82929480)
-COOP_TRACE_WRAPPER(sub_82929750,"NetDll_send",0x82929750)
-COOP_TRACE_WRAPPER(sub_82929688,"NetDll_getpeername",0x82929688)
-COOP_TRACE_WRAPPER(sub_829297C8,"NetDll___WSAFDIsSet",0x829297C8)
-COOP_TRACE_WRAPPER(sub_829295F8,"NetDll_closesocket",0x829295F8)
-COOP_TRACE_WRAPPER(sub_82929730,"NetDll_recvfrom",0x82929730)
-COOP_TRACE_WRAPPER(sub_82929718,"NetDll_recv",0x82929718)
-COOP_TRACE_WRAPPER(sub_829296F8,"NetDll_select",0x829296F8)
-COOP_TRACE_WRAPPER(sub_829293C0,"NetDll_XNetRandom",0x829293C0)
-COOP_TRACE_WRAPPER(sub_829294A0,"NetDll_XNetQosLookup",0x829294A0)
-COOP_TRACE_WRAPPER(sub_82929460,"NetDll_XNetConnect",0x82929460)
-COOP_TRACE_WRAPPER(sub_82929768,"NetDll_sendto",0x82929768)
-COOP_TRACE_WRAPPER(sub_829297A8,"NetDll_WSAGetLastError",0x829297A8)
-COOP_TRACE_WRAPPER(sub_8292A9B8,"SessionCreate",0x8292A9B8)
-COOP_TRACE_WRAPPER(sub_8292ABF8,"SessionJoinLocal",0x8292ABF8)
-COOP_TRACE_WRAPPER(sub_8292ACA0,"SessionJoinRemote",0x8292ACA0)
-COOP_TRACE_WRAPPER(sub_8292AF70,"SessionStart",0x8292AF70)
-COOP_TRACE_WRAPPER(sub_8292B008,"SessionEnd",0x8292B008)
-COOP_TRACE_WRAPPER(sub_8292B0B8,"SessionSearchEx",0x8292B0B8)
+COOP_TRACE_WRAPPER(82929670,829B2740,"NetDll_getsockname")
+COOP_TRACE_WRAPPER(829297C0,829B2890,"NetDll_WSAWaitForMultipleEvents")
+COOP_TRACE_WRAPPER(82929448,829B2518,"NetDll_XNetInAddrToString")
+COOP_TRACE_WRAPPER(82929630,829B2700,"NetDll_setsockopt")
+COOP_TRACE_WRAPPER(829293D0,829B24A0,"NetDll_XNetCreateKey")
+COOP_TRACE_WRAPPER(82929508,829B25D8,"NetDll_XNetQosRelease")
+COOP_TRACE_WRAPPER(829296A0,829B2770,"NetDll_bind")
+COOP_TRACE_WRAPPER(82929470,829B2540,"NetDll_XNetGetConnectStatus")
+COOP_TRACE_WRAPPER(82929650,829B2720,"NetDll_getsockopt")
+COOP_TRACE_WRAPPER(829296D0,829B27A0,"NetDll_listen")
+COOP_TRACE_WRAPPER(829297B8,829B2888,"NetDll_WSACloseEvent")
+COOP_TRACE_WRAPPER(829292F8,829B23C8,"NetDll_XNetStartup")
+COOP_TRACE_WRAPPER(829293E0,829B24B0,"NetDll_XNetRegisterKey")
+COOP_TRACE_WRAPPER(82929528,829B25F8,"NetDll_WSAStartup")
+COOP_TRACE_WRAPPER(82929418,829B24E8,"NetDll_XNetServerToInAddr")
+COOP_TRACE_WRAPPER(82929608,829B26D8,"NetDll_shutdown")
+COOP_TRACE_WRAPPER(82929788,829B2858,"NetDll_WSAEventSelect")
+COOP_TRACE_WRAPPER(82929430,829B2500,"NetDll_XNetInAddrToXnAddr")
+COOP_TRACE_WRAPPER(82929618,829B26E8,"NetDll_ioctlsocket")
+COOP_TRACE_WRAPPER(829297B0,829B2880,"NetDll_WSACreateEvent")
+COOP_TRACE_WRAPPER(82929400,829B24D0,"NetDll_XNetXnAddrToInAddr")
+COOP_TRACE_WRAPPER(829295E0,829B26B0,"NetDll_socket")
+COOP_TRACE_WRAPPER(829297A0,829B2870,"NetDll_inet_addr")
+COOP_TRACE_WRAPPER(82929518,829B25E8,"NetDll_XNetGetTitleXnAddr")
+COOP_TRACE_WRAPPER(829296B8,829B2788,"NetDll_connect")
+COOP_TRACE_WRAPPER(829296E0,829B27B0,"NetDll_accept")
+COOP_TRACE_WRAPPER(829293F0,829B24C0,"NetDll_XNetUnregisterKey")
+COOP_TRACE_WRAPPER(82929480,829B2550,"NetDll_XNetQosListen")
+COOP_TRACE_WRAPPER(82929750,829B2820,"NetDll_send")
+COOP_TRACE_WRAPPER(82929688,829B2758,"NetDll_getpeername")
+COOP_TRACE_WRAPPER(829297C8,829B2898,"NetDll___WSAFDIsSet")
+COOP_TRACE_WRAPPER(829295F8,829B26C8,"NetDll_closesocket")
+COOP_TRACE_WRAPPER(82929730,829B2800,"NetDll_recvfrom")
+COOP_TRACE_WRAPPER(82929718,829B27E8,"NetDll_recv")
+COOP_TRACE_WRAPPER(829296F8,829B27C8,"NetDll_select")
+COOP_TRACE_WRAPPER(829293C0,829B2490,"NetDll_XNetRandom")
+COOP_TRACE_WRAPPER(829294A0,829B2570,"NetDll_XNetQosLookup")
+COOP_TRACE_WRAPPER(82929460,829B2530,"NetDll_XNetConnect")
+COOP_TRACE_WRAPPER(82929768,829B2838,"NetDll_sendto")
+COOP_TRACE_WRAPPER(829297A8,829B2878,"NetDll_WSAGetLastError")
+COOP_TRACE_WRAPPER(8292A9B8,829B3A88,"SessionCreate")
+COOP_TRACE_WRAPPER(8292ABF8,829B3CC8,"SessionJoinLocal")
+COOP_TRACE_WRAPPER(8292ACA0,829B3D70,"SessionJoinRemote")
+COOP_TRACE_WRAPPER(8292AF70,829B4040,"SessionStart")
+COOP_TRACE_WRAPPER(8292B008,829B40D8,"SessionEnd")
+COOP_TRACE_WRAPPER(8292B0B8,829B4188,"SessionSearchEx")
 // .7.cpp:21652/21679 checks local sign-in before the privilege import.
-COOP_TRACE_WRAPPER(sub_82744760,"PrivilegeWrapper",0x82744760)
+COOP_TRACE_WRAPPER(82744760,827CDB28,"PrivilegeWrapper")
 // .140.cpp:32988 sign-in; privilege 252/251 at 0x82A8F034/0x82A8F058.
-COOP_TRACE_WRAPPER(sub_82A8ED90,"ProfileGate",0x82A8ED90)
+COOP_TRACE_WRAPPER(82A8ED90,82B18540,"ProfileGate")
+// --coop_trace_desync: sub_823C49A0(game r3, code r4) is where the System Link
+// layer ends a session (it stores the code at game+762 and hands it to the
+// error screen, sub_8266DDC0). Codes seen in the disassembly: 2 lockstep
+// timeout (10 s real time, sub_8246A5C0 .78.cpp:11177-11188), 7 stall without
+// a resend (.78.cpp:11137-11154), 8 state-hash mismatch (sub_8246A828
+// .120.cpp:9666-9672), 9 frame-scheduled wait over 10 s (.78.cpp:11010-11036),
+// 4/5 pool exhaustion, 0/3 session/sign-in. Logs each distinct code once with
+// the lockstep frame [[0x82DE25C0]+16]. Disc only: the title update's address
+// for this function isn't in docs/tu-address-map.csv yet.
+REXCVAR_DEFINE_BOOL(coop_trace_desync,false,"Crackdown","Log the System Link error code (sub_823C49A0) and lockstep frame, once per code");
+#if !CRACKDOWN_TU
+REX_HOOK_RAW(sub_823C49A0) {
+  if (REXCVAR_GET(coop_trace_desync)) {
+    static std::atomic<uint64_t> seen{0};
+    const uint32_t code=ctx.r4.u32;
+    const uint64_t bit=code<64?(1ull<<code):(1ull<<63);
+    if (!(seen.fetch_or(bit)&bit)) {
+      const uint32_t clock=REX_LOAD_U32(0x82DE25C0);
+      REXLOG_WARN("coop_trace_desync: session error code {} at frame {} (lr {:08X})",code,
+                  clock?REX_LOAD_U32(clock+16):0u,uint32_t(ctx.lr));
+    }
+  }
+  __imp__sub_823C49A0(ctx,base);
+}
+#endif
