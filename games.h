@@ -24,6 +24,10 @@ struct GameProfile {
   uint32_t title_id;            // Xbox title id of its content packages (title update, DLC)
   const char* update_xexp;      // title_update: SHA256 of the supported update's default.xexp
   bool dlc;                     // the launcher installs DLC packs (and passes --dlc_root)
+  // Optional title update with its own exe built from it (Crackdown 1: crackdown_tu.exe for Title Update #6, which the
+  // Free-For-All Pack needs). The update stays in tu/ (--update_data_root; the exe applies tu/default.xexp itself),
+  // never next to default.xex, which the disc exe would then try to apply. nullptr: no such exe.
+  const char* update_exe;
 };
 
 // Crackdown 2: World multi-language disc (XGD2), default.xex sha256 below. It runs with title update 0.0.5.1
@@ -32,13 +36,14 @@ struct GameProfile {
 inline constexpr GameProfile kGames[] = {
     {"cd1", "CRACKDOWN", "", "crackdown.exe", "crackdown.toml", "game-manifest.txt", "crackdown", "crackdown_",
      supported_xex, "profile", "Select your supported World multi-language disc image or an extracted game folder.",
-     true, true, false, true, &cd1_updates, 0x4D5307DC, nullptr, false},
+     true, true, false, true, &cd1_updates, 0x4D5307DC,
+     "a0d4fe06d6a4a2fd96d18f5de426f761fe1b8cce5d5bc7f981d738c3519c819e", true, "crackdown_tu.exe"},
     {"cd2", "CRACKDOWN 2", "cd2", "crackdown2.exe", "crackdown2.toml", "game-manifest.txt", "crackdown2",
      "crackdown2_", "8959c449e382661d29b8ea479c685f506cd5bd3eca40b3d73a51cc10f281069f", "profile_cd2",
      "Select your Crackdown 2 World multi-language disc image or an extracted game folder. The title update "
      "(0.0.5.1) is installed next, from its package.",
      false, true, true, false, &cd2_updates, 0x4D5308BC,
-     "a5e49fc1ff7f6f65e6f95a7b5c4b9392bb9e38674d1237ac0e2f0149d05929d7", true},
+     "a5e49fc1ff7f6f65e6f95a7b5c4b9392bb9e38674d1237ac0e2f0149d05929d7", true, nullptr},
 };
 inline constexpr int kGameCount = int(sizeof(kGames) / sizeof(kGames[0]));
 // Accepts the profile id or the game's name as the Archipelago clients pass it (--game crackdown2).

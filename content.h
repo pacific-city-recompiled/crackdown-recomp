@@ -20,7 +20,9 @@ ContentPack install_content_dlc(const fs::path& package, const fs::path& user, u
 // Title update package (content type 000B0000) of that title: its files go to <home>/tu (passed as
 // --update_data_root) and its default.xexp, which must have the given SHA256, next to the disc's default.xex.
 // Unpacked through staging folders; returns the package title.
+// beside_xex false (a game whose update has its own exe): default.xexp stays in tu/ only.
 std::string install_content_update(const fs::path& package, const fs::path& home, const fs::path& game,
                                    uint32_t title_id, const std::string& xexp_sha256,
-                                   const std::atomic_bool& cancel, Progress progress = {});
+                                   const std::atomic_bool& cancel, Progress progress = {},
+                                   bool beside_xex = true);
 }  // namespace launcher
