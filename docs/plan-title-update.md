@@ -111,6 +111,6 @@ The block layout is the same in the update (+28/+32/+36/+40 read by identical co
 
 - Codegen input: `game-tu/` at the repo root (gitignored) with `Default.xex` (the disc's) and `Default.xexp`
   (from Title Update #6: `python -I tools/re/stfs_extract.py <TU package> <dir>`). Hardlinks are fine.
-- Runtime: crackdown_tu.exe runs on the normal game folder. It reads the update from `title-update/` next to
+- Runtime: crackdown_tu.exe runs on the normal game folder. It reads the update from `tu/` next to
   the exe (`--update_data_root`, `--xex_patch=update:\default.xexp`, SDK patch 0028); the launcher's SAVES tab
   installs it there. `tools/package-beta.ps1` builds and packages crackdown_tu.exe.

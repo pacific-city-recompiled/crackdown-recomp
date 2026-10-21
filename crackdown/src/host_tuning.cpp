@@ -237,12 +237,12 @@ void ApplyStartupDefaults(rex::PathConfig& paths) {
   const std::filesystem::path exe_dir = rex::filesystem::GetExecutableFolder();
 #if CRACKDOWN_TU
   // The title update build runs the disc's game folder with Title Update #6
-  // from title-update\ next to the exe (unpacked there by the launcher):
+  // from tu\ next to the exe (unpacked there by the launcher):
   // Default.xexp is applied at load (--xex_patch, SDK patch 0028) and the
   // update's Local\<lang>\GameStrings_DLC.str is read through update:. The
   // disc build never sees the patch.
   if (paths.update_data_root.empty()) {
-    paths.update_data_root = exe_dir / "title-update";
+    paths.update_data_root = exe_dir / "tu";
     REXLOG_INFO("crackdown default: --update_data_root={}", paths.update_data_root.string());
   }
   if (rex::cvar::Query<std::string>("xex_patch").empty()) {

@@ -260,7 +260,7 @@ ContentPack install_content_dlc(const fs::path& package, const fs::path& user, u
 
 std::string install_content_update(const fs::path& package, const fs::path& home, const fs::path& game,
                                    uint32_t title_id, const std::string& xexp_sha256,
-                                   const std::atomic_bool& cancel, Progress progress) {
+                                   const std::atomic_bool& cancel, Progress progress, bool beside_xex) {
   Stfs stfs(package, title_id, kTitleUpdate);
   auto root = fs::absolute(home).lexically_normal(); no_links(root);
   if (!fs::is_regular_file(game / "default.xex")) throw std::runtime_error("Install the game files first, then the title update");
@@ -276,10 +276,12 @@ std::string install_content_update(const fs::path& package, const fs::path& home
       throw std::runtime_error("This is not the title update this build is made for. Nothing was installed.");
     // default.xexp beside default.xex (the SDK applies it at load), through a temporary name so a failed copy
     // never leaves a partial patch.
-    auto patch = game / "default.xexp", partial = game / ("default.xexp.installing-" + pid());
-    no_links(game); no_links(patch);
-    fs::copy_file(xexp, partial, fs::copy_options::overwrite_existing);
-    fs::rename(partial, patch);
+    if (beside_xex) {
+      auto patch = game / "default.xexp", partial = game / ("default.xexp.installing-" + pid());
+      no_links(game); no_links(patch);
+      fs::copy_file(xexp, partial, fs::copy_options::overwrite_existing);
+      fs::rename(partial, patch);
+    }
     no_links(destination);
     remove_quietly(destination);
     fs::rename(staging, destination);

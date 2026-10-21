@@ -95,7 +95,7 @@ if (-not $SkipBuild) {
 }
 
 $gameBuild = Join-Path $repo 'crackdown/out/build/win-amd64-release'
-# Title update build (crackdown_tu.exe): same runtime DLLs; reads title-update\ that the user installs.
+# Title update build (crackdown_tu.exe): same runtime DLLs; reads tu\, which the launcher installs.
 $tuBuild = Join-Path $repo 'crackdown_tu/out/build/win-amd64-release'
 $launcherBuild = Join-Path $repo 'crackdown/launcher/out'
 $bin = Join-Path $sdk 'out/install/win-amd64/bin'
