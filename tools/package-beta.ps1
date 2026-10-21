@@ -63,7 +63,11 @@ if (-not $SkipBuild) {
     $vs = if ($VisualStudio) { $VisualStudio } else { & $vswhere -latest -products * -property installationPath }
     if (-not $vs -or -not (Test-Path -LiteralPath (Join-Path $vs 'VC/Auxiliary/Build/vcvars64.bat'))) { throw 'Visual Studio C++ Build Tools not found; pass -VisualStudio <install path>' }
     $vcvars = Join-Path $vs 'VC/Auxiliary/Build/vcvars64.bat'
-    $vars = & $env:ComSpec /d /s /c "`"`"$vcvars`" >nul && set`""
+    # Through a temporary .cmd: Windows PowerShell 5.1 mangles the nested quotes of an inline
+    # cmd /s /c "..." around a path with spaces ('""C:\Program' is not recognized).
+    $capture = Join-Path $env:TEMP ("vcvars-" + [guid]::NewGuid().ToString('N') + '.cmd')
+    Set-Content -LiteralPath $capture -Encoding ASCII -Value "@call `"$vcvars`" >nul || exit /b 1`r`n@set"
+    try { $vars = & $env:ComSpec /d /c $capture } finally { Remove-Item -LiteralPath $capture -ErrorAction SilentlyContinue }
     if ($LASTEXITCODE -ne 0) { throw 'vcvars64 failed' }
     foreach ($line in $vars) {
         if ($line -match '^([^=]+)=(.*)$') { [Environment]::SetEnvironmentVariable($Matches[1],$Matches[2],'Process') }
