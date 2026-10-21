@@ -10,6 +10,9 @@
 #include "game_addresses.h"
 
 double CrackdownMeasuredStepSeconds();
+// hooks_framerate.cpp, --sim_vehicle_30hz: the step to run one vehicle's
+// action (sub_824A1708) with this physics step, or 0 to skip it this step.
+float CrackdownVehicleActionStep(uint32_t vehicle, float dt);
 void CrackdownAudioTimeoutTick(PPCRegister& elapsed, PPCRegister& instance);
 
 // hooks_framerate.cpp: replaces the game's fixed 33 ms per frame with the

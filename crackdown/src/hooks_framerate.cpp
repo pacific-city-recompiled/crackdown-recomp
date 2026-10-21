@@ -52,8 +52,10 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <mutex>
 #include <string>
 #include <thread>
+#include <unordered_map>
 
 #include <rex/cvar.h>
 #include <rex/hook.h>
@@ -81,6 +83,9 @@ REXCVAR_DEFINE_BOOL(sim_anim_step, false, "Crackdown",
 REXCVAR_DEFINE_BOOL(sim_ground_snap_30hz, true, "Crackdown",
                     "Above 30 fps, give the player's step-down snap (sub_822B4D40) the "
                     "velocity it has at 30 fps instead of drop / frame time (stairs speed bug)");
+REXCVAR_DEFINE_BOOL(sim_vehicle_30hz, true, "Crackdown",
+                    "Above 30 fps, run each car's Havok vehicle action (sub_824A1708) once per "
+                    "1/30 s of accumulated physics time, so cars accelerate as at 30 fps");
 REXCVAR_DEFINE_BOOL(sim_lockstep_step, false, "Crackdown",
                     "With --sim_game_clock: step exactly 1/60 s per frame (16/17/17 ms keyed to "
                     "the game's frame counter) instead of the measured frame time, so System "
@@ -137,6 +142,36 @@ const SimFlags& Sim() {
 // measured 30 fps frame is 33 or 34 ms, which must stay stock.
 constexpr float kGroundSnapMaxDt = 1.0f / 32.0f;
 }  // namespace
+
+// --sim_vehicle_30hz. The game's vehicle action sub_824A1708 (Havok vehicle
+// kit, re-notes "Vehicles") takes the step's dt ([stepInfo+8]) and scales its
+// forces by it, but the result still depends on the step size: on the garage
+// replay (bench/car_tp.rec, --diag_vehicle, 2026-10-21) the launch matches
+// 30 fps for 0.5 s, then 60 fps falls behind with more engine torque
+// (lower rpm), i.e. a per-step loss: 14.1 m/s at 1 s at 30 fps, 13.0 at 60,
+// 12.3 at 120. Running the action only every other step at 60 fps with twice
+// the dt (and nothing else changed) gave 13.7 at 1 s and the 30 fps curve
+// after. So the action runs once per 1/30 s of physics time, with the time
+// accumulated since its last run; Havok still integrates the chassis every
+// step. Per vehicle, from the physics steps only, so co-op peers (identical
+// steps in lockstep) stay identical.
+float CrackdownVehicleActionStep(uint32_t vehicle, float dt) {
+  constexpr float kPeriod = 1.0f / 30.0f;
+  static const bool enabled = REXCVAR_GET(sim_vehicle_30hz);
+  // Steps of 25 ms and more (under 40 fps) run as they are.
+  if (!enabled || dt >= kPeriod * 0.75f) return dt;
+  static std::mutex mutex;
+  static std::unordered_map<uint32_t, float> pending;
+  std::lock_guard lock(mutex);
+  float& t = pending[vehicle];
+  t += dt;
+  // Run on the step that brings the total closest to one period (the guest
+  // limiter's 60 fps is ~61.6, 16.2 ms steps: 2 of them make a period, not 3).
+  if (t + dt * 0.5f < kPeriod) return 0.0f;
+  const float step = t;
+  t = 0.0f;
+  return step;
+}
 
 // Consumers of 30 Hz counters use the same clamped simulation
 // step as the game update. Stock clocks must advance exactly one tick.
