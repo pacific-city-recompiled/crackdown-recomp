@@ -3,18 +3,25 @@
 #include <span>
 
 namespace launcher {
-// Where one game's runtime files come from. Each game updates from its own GitHub repository into its own
+// Where one game's runtime files come from. Each game updates from its own GitLab project's releases into its own
 // folder; only Crackdown 1's package carries the launcher (CrackdownLauncher.exe), so only its updates restart it.
 // A 1.0 launcher knows only the Crackdown 1 source, so that package must keep to the files 1.0 allows.
+// update_host is the only server the updater talks to (every redirect hop included). It serves the releases API
+// and every release asset: uploaded files, generic packages and /-/releases/<tag>/downloads/ links.
+inline constexpr char update_host[] = "gitlab.com";
 struct UpdateSource {
-  const char* repository;   // owner/name on github.com
+  const char* project;      // group/name on update_host
+  const char* project_id;   // numeric project id (uploaded files are linked as /-/project/<id>/uploads/...)
   const char* zip_prefix;   // release asset <prefix>*.zip + .sha256, one package directory of the same prefix
   const char* folder;       // install folder under the package ("" = package root)
   const char* version_file; // written after a launcher install: the installed release tag
 };
-inline constexpr UpdateSource cd1_updates{"Unowa001/crackdown-recomp", "CrackdownRecomp-", "", nullptr};
-inline constexpr UpdateSource cd2_updates{"Unowa001/Crackdown-2-Recomp", "Crackdown2Recomp-", "cd2", "release.txt"};
-inline constexpr char release_repository[] = "Unowa001/crackdown-recomp";
+inline constexpr UpdateSource cd1_updates{"pacific-city-recompiled/crackdown-recomp", "88052940", "CrackdownRecomp-", "", nullptr};
+inline constexpr UpdateSource cd2_updates{"pacific-city-recompiled/crackdown-2-recomp", "88052946", "Crackdown2Recomp-", "cd2", "release.txt"};
+// https://<update_host>/<project>, its releases page, and whether a release asset URL belongs to the project.
+std::string project_url(const UpdateSource& source);
+std::string releases_url(const UpdateSource& source);
+bool asset_url_allowed(const std::string& url, const UpdateSource& source);
 using Bytes = std::vector<unsigned char>;
 struct XzpEntry { std::string name; Bytes data; };
 std::vector<XzpEntry> read_xzp(std::span<const unsigned char> bytes);
@@ -30,6 +37,8 @@ bool append_steam_shortcut(std::vector<VdfNode>& nodes, const fs::path& executab
 std::string add_to_steam(const fs::path& executable);
 
 struct Release { std::string tag, notes, url, zip_url, sha_url; bool prerelease=false; };
+// GitLab releases API (GET /api/v4/projects/:id/releases). GitLab has no prerelease flag: a SemVer prerelease
+// tag (v0.5.0-beta) is a prerelease. Packages are the release's asset links (direct_asset_url, else url).
 std::vector<Release> parse_releases(const std::string& json, const UpdateSource& source = cd1_updates);
 // Strict SemVer, optional leading v. Build metadata does not affect ordering.
 int compare_versions(const std::string& a, const std::string& b);
