@@ -276,9 +276,9 @@ int main(int argc,char** argv) {
   } online;
   auto launcher_package=[&] { return gp->updates==&cd1_updates; };
   auto current_version=[&] { return game_version; };
-  bool github_authorized=auto_updates;
+  bool online_authorized=auto_updates;
   auto check_updates=[&] {
-    github_authorized=true;
+    online_authorized=true;
     if(online.busy) return;
     if(online.worker.joinable()) online.worker.join();
     online.busy=true; online.install=false; online.done=false; online.cancel=false; online.message="Checking releases..."; online.releases.clear();
@@ -531,8 +531,8 @@ int main(int argc,char** argv) {
         if(menu("DOWNLOAD RUNTIME",!blocked)) { show_dialog(Dialog::updates); check_updates(); }
         if(menu("SETTINGS")) { tab=1; focus_page=true; }
         if(menu("QUIT",!(online.busy&&online.install))) show_dialog(Dialog::quit);
-        ImGui::TextWrapped("%s is not installed in this launcher yet. Download its latest release from github.com/%s into %s, then install your game files.",
-                           gp->title,gp->updates->repository,utf8(ghome).c_str());
+        ImGui::TextWrapped("%s is not installed in this launcher yet. Download its latest release from %s into %s, then install your game files.",
+                           gp->title,releases_url(*gp->updates).c_str(),utf8(ghome).c_str());
       } else {
         bool needs_update=gp->title_update&&verified&&!fs::is_regular_file(game/"default.xexp");
         if(needs_update) { if(menu("INSTALL TITLE UPDATE",!blocked)) { package_kind=1; show_dialog(Dialog::package); } }
@@ -743,11 +743,11 @@ int main(int argc,char** argv) {
     }
     if(tab==tab_about) {
       ImGui::Text("Crackdown Recomp / Launcher %s (selected: %s)",LAUNCHER_VERSION,gp->title);
-      ImGui::TextWrapped("Update source for %s: github.com/%s",gp->title,gp->updates->repository);
+      ImGui::TextWrapped("Update source for %s: %s",gp->title,releases_url(*gp->updates).c_str());
       if(!launcher_package()) { auto v=current_version(); ImGui::TextWrapped("Installed %s release: %s",gp->title,v.empty()?"none":v.c_str()); }
       ImGui::TextWrapped("Standalone front end using SDL3, Dear ImGui, toml++ and stb_image. Barlow fonts: SIL OFL 1.1. Controller prompts: CC0. Game art comes from your verified files.");
       focus_first(); if(ImGui::Button("Open licenses")) { try { show_folder(home/"LICENSES"); } catch(const std::exception& e) { error=e.what(); } }
-      ImGui::SameLine(); ImGui::BeginDisabled(!github_authorized); if(ImGui::Button("Open repository")) { auto url="https://github.com/"+std::string(gp->updates->repository); if(!SDL_OpenURL(url.c_str())) error=SDL_GetError(); } ImGui::EndDisabled();
+      ImGui::SameLine(); ImGui::BeginDisabled(!online_authorized); if(ImGui::Button("Open repository")) { auto url=project_url(*gp->updates); if(!SDL_OpenURL(url.c_str())) error=SDL_GetError(); } ImGui::EndDisabled();
       if(ImGui::Button("Open logs folder")) { try { fs::create_directories(home/"logs"); show_folder(home/"logs"); } catch(const std::exception& e) { error=e.what(); } }
       ImGui::SameLine(); if(ImGui::Button("Copy system info")) {
         try { report="Launcher: " LAUNCHER_VERSION "\n"+system_info()+"Game XEX SHA256: "+hash+"\nSave profile: "+(profile.empty()?"default":profile)+"\ncrackdown.toml:\n"+redacted_config(config); if(!SDL_SetClipboardText(report.c_str())) error=SDL_GetError(); }
@@ -775,8 +775,8 @@ int main(int argc,char** argv) {
     if(ask_updates) ImGui::OpenPopup("Update preferences");
     ImGui::SetNextWindowSize({610*ui_scale,0},ImGuiCond_Always);
     if(ImGui::BeginPopupModal("Update preferences",nullptr,ImGuiWindowFlags_AlwaysAutoResize)) {
-      ImGui::TextWrapped("Allow the launcher to check GitHub Releases when it opens? No request is made until you enable this. You can always check manually.");
-      ImGui::TextWrapped("Update sources: github.com/%s (Crackdown and this launcher) and github.com/%s (Crackdown 2).",cd1_updates.repository,cd2_updates.repository);
+      ImGui::TextWrapped("Allow the launcher to check for new releases on GitLab when it opens? No request is made until you enable this. You can always check manually.");
+      ImGui::TextWrapped("Update sources: %s (Crackdown and this launcher) and %s (Crackdown 2).",releases_url(cd1_updates).c_str(),releases_url(cd2_updates).c_str());
       auto consent=[&](bool enabled) {
         try { update_config(preferences,{{"auto_updates",enabled?"true":"false"},{"update_consent_asked","true"}}); auto_updates=enabled; ask_updates=false; ImGui::CloseCurrentPopup(); focus_page=true; if(enabled) check_updates(); }
         catch(const std::exception& e) { error=e.what(); }
@@ -840,7 +840,7 @@ int main(int argc,char** argv) {
         }
       } else if(dialog==Dialog::updates) {
         auto installed=current_version();
-        ImGui::Text("UPDATES / VERSION HISTORY: %s",gp->title); ImGui::TextWrapped("Update source: github.com/%s. Installed: %s",gp->updates->repository,installed.empty()?"none":installed.c_str());
+        ImGui::Text("UPDATES / VERSION HISTORY: %s",gp->title); ImGui::TextWrapped("Update source: %s. Installed: %s",releases_url(*gp->updates).c_str(),installed.empty()?"none":installed.c_str());
         modal_focus(); ImGui::BeginDisabled(online.busy);
         if(ImGui::Button("Check for updates")) check_updates(); ImGui::EndDisabled();
         if(online.busy) {

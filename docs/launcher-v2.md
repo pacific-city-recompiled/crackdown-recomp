@@ -59,11 +59,12 @@ be opened without a request. The repository link is disabled until update
 checks have been authorized in that run or persisted preferences. Smoke mode
 never starts network operations, even if startup checks were enabled.
 
-`release_repository` in `v2.h` is the only source-code owner/repo constant:
-`Unowa001/crackdown-recomp`. It is marked TODO pending owner confirmation of
-name and visibility. No token is stored or sent. Private repositories without
-anonymous Releases access currently produce an HTTP error; authenticated
-private-repository updates are not implemented.
+Update sources live in `v2.h`: `update_host` (`gitlab.com`, the only host the
+updater contacts, on every redirect hop) and one `UpdateSource` per game with its
+GitLab project path and numeric id (`pacific-city-recompiled/crackdown-recomp`,
+`pacific-city-recompiled/crackdown-2-recomp`). Releases come from
+`/api/v4/projects/<id>/releases`; a SemVer prerelease tag is a prerelease. No token
+is stored or sent, so private projects produce an HTTP error.
 
 Release tags must be SemVer, e.g. `v0.2.1` or `v0.3.0-beta.1`. Stable checks use
 `/releases/latest` and fetch a version-sorted history (up to 20 published

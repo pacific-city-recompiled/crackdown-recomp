@@ -7,7 +7,7 @@
   build runs under Proton (add `CrackdownLauncher.exe` to Steam as a non-Steam game and force
   a Proton version) or through launchers such as Faugus. If it doesn't start, run it once with
   the launch option `PROTON_LOG=1 %command%` and attach the `steam-<id>.log` from your home
-  folder to a GitHub issue.
+  folder to a [GitLab issue](https://gitlab.com/pacific-city-recompiled/crackdown-recomp/-/issues).
 - A CPU with AVX2 and FMA3 (most Intel since 2013 / AMD since 2015) and a DirectX 12 GPU.
 - The [Microsoft Visual C++ x64 Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe).
 - Your own dump of the **Crackdown World multi-language disc** (an ISO, full XGD2 or trimmed
@@ -17,7 +17,7 @@
 ## Install
 
 1. Download `CrackdownRecomp-<version>.zip` from the
-   [latest release](https://github.com/Unowa001/crackdown-recomp/releases/latest).
+   [latest release](https://gitlab.com/pacific-city-recompiled/crackdown-recomp/-/releases).
 2. Extract the **whole** ZIP into a folder you can write to, e.g. `Documents\CrackdownRecomp`.
    Don't use `Program Files`, and don't run it from inside the ZIP.
 3. Run `CrackdownLauncher.exe`.
@@ -108,13 +108,22 @@ Both are optional and come from your own Xbox 360 (or a backup of its `Content` 
 ## Updates
 
 The first time you open the launcher it asks whether to check for updates. You can also
-use **Check for updates** at any time. Updates download from this repository's releases,
+use **Check for updates** at any time. Updates download from this project's
+[GitLab releases](https://gitlab.com/pacific-city-recompiled/crackdown-recomp/-/releases),
 are verified (SHA256) and replace only the program files. Your game files, saves and
 settings are kept, and a failed update rolls back.
 
+> [!NOTE]
+> **Launcher 1.2.1 and older can't update any more.** They checked GitHub, where this project
+> no longer publishes. Download `CrackdownRecomp-1.2.2.zip` (or newer) from the
+> [releases page](https://gitlab.com/pacific-city-recompiled/crackdown-recomp/-/releases) once
+> and copy everything inside its `CrackdownRecomp-1.2.2` folder over your install folder (the
+> package has only program files: your game files, saves and settings stay). From 1.2.2
+> on, Crackdown and Crackdown 2 update from GitLab in the launcher again.
+
 ## Crackdown 2
 
-The launcher also runs [Crackdown 2 Recomp](https://github.com/Unowa001/Crackdown-2-Recomp) (beta).
+The launcher also runs [Crackdown 2 Recomp](https://gitlab.com/pacific-city-recompiled/crackdown-2-recomp) (beta).
 Pick **CRACKDOWN 2** in the header. It lives in the `cd2` folder next to the launcher, with its own
 settings, saves (`Documents\crackdown2`) and logs:
 
