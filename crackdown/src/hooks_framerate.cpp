@@ -56,6 +56,7 @@
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <vector>
 
 #include <rex/cvar.h>
 #include <rex/hook.h>
@@ -86,6 +87,9 @@ REXCVAR_DEFINE_BOOL(sim_ground_snap_30hz, true, "Crackdown",
 REXCVAR_DEFINE_BOOL(sim_vehicle_30hz, true, "Crackdown",
                     "Above 30 fps, run each car's Havok vehicle action (sub_824A1708) once per "
                     "1/30 s of accumulated physics time, so cars accelerate as at 30 fps");
+REXCVAR_DEFINE_BOOL(sim_crowd_30hz, true, "Crackdown",
+                    "Above 30 fps, scale each crowd pedestrian's per-update move (sub_82338220) "
+                    "by the frame time, so they walk and run at their 30 fps speed");
 REXCVAR_DEFINE_BOOL(sim_lockstep_step, false, "Crackdown",
                     "With --sim_game_clock: step exactly 1/60 s per frame (16/17/17 ms keyed to "
                     "the game's frame counter) instead of the measured frame time, so System "
@@ -178,6 +182,55 @@ float CrackdownVehicleActionStep(uint32_t vehicle, float dt) {
 double CrackdownMeasuredStepSeconds() {
   if (!Sim().variable_step && !Sim().game_clock) return 1.0 / 30.0;
   return double(g_step.load(std::memory_order_relaxed));
+}
+
+// --sim_crowd_30hz. NPCs sprinting far too fast at 120 fps (Austin, live play).
+// The ambient crowd update sub_82338220 (called once per unpaused frame from
+// the game update sub_82324330 via sub_82343730) loops over the
+// [crowd+9036] pedestrians at [crowd+6024 + 4i] and moves each one by
+// [ped+184] * [ped+180] per call (disassembly). [ped+180] is a per-update step
+// set to walk speed [+192] * 1/30 (the pooled 0x820ED704, which
+// --sim_step_literal leaves alone) or, when bit 0 of [+663] is set, run speed
+// [+196] * 2/30 (0x82072048); the spawn sub_82330B68 and the update's own
+// state change write it. Nothing scales it by the frame time, so the crowd
+// moves at frame rate / 30 times its speed. --diag_crowd on the street replay
+// (bench/stand60.rec --teleport=1000,80,-1000), mean walk / one runner:
+// 30 fps 1.2 / 4.9 m/s, 60 fps 2.8 / 9.5-13, 120 fps 5.2 / 19-25.
+// For the call, each step is scaled by step * 30 and then put back unless the
+// game rewrote it (a state change stores a fresh stock value). The update
+// build moved the members: step at +160, crowd object at 0x82EF8010
+// (sub_8236D428, same loop: `lwz r21,9036(r30)`, `addi r10,r30,6024`,
+// `lfs f0,168(r31)`, `fmuls f0,f0,f21`, `stfs f0,160(r31)`).
+void CrackdownLogCrowd(uint8_t* base);
+CD_HOOK_RAW(CD_SUB(82338220, 8236D428)) {
+  constexpr uint32_t kCrowd = CD_ADDR(0x82E61D30, 0x82EF8010);
+  constexpr uint32_t kStep = CD_ADDR(180, 160);
+  CrackdownLogCrowd(base);
+  static const bool enabled = REXCVAR_GET(sim_crowd_30hz);
+  const float step = float(CrackdownMeasuredStepSeconds());
+  if (!enabled || !(step < kGroundSnapMaxDt)) {  // 30 fps and slower: stock
+    CD_IMP(82338220, 8236D428)(ctx, base);
+    return;
+  }
+  const float scale = step * 30.0f;
+  struct Saved {
+    uint32_t ped, stock, scaled;
+  };
+  static std::vector<Saved> saved;  // game thread only
+  saved.clear();
+  const uint32_t count = std::min<uint32_t>(REX_LOAD_U32(kCrowd + 9036), 1024);
+  for (uint32_t i = 0; i < count; ++i) {
+    const uint32_t ped = REX_LOAD_U32(kCrowd + 6024 + 4 * i);
+    if (!ped) continue;
+    const uint32_t stock = REX_LOAD_U32(ped + kStep);
+    const uint32_t scaled = std::bit_cast<uint32_t>(std::bit_cast<float>(stock) * scale);
+    REX_STORE_U32(ped + kStep, scaled);
+    saved.push_back({ped, stock, scaled});
+  }
+  CD_IMP(82338220, 8236D428)(ctx, base);
+  for (const Saved& s : saved) {
+    if (REX_LOAD_U32(s.ped + kStep) == s.scaled) REX_STORE_U32(s.ped + kStep, s.stock);
+  }
 }
 
 // Leaves the 33 in place unless the site's bit is set. g_frame_ms stays 33

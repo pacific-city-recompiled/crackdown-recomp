@@ -35,6 +35,16 @@ Checked so far:
   match 30 fps. Without `--sim_step_literal` the car accelerates faster (the "a little fast" report). The "car totaled at the
   bottom of the stairs" report (crackdown_024/033, no `--sim_step_literal`) did not reproduce in any configuration.
 - sub_823FF3B8: t += 0.033 (0x82CFF2B4) per frame, then fmod. Cosmetic timer, runs 2x at 60 fps.
+- **Crowd pedestrians** (2026-10-26, the "NPCs sprinting far too fast at 120" report): the ambient crowd update
+  sub_82338220 (once per unpaused frame: sub_82324330 -> sub_82343730) moves each ped by `[ped+184] * [ped+180]` per call,
+  where `[ped+180]` = walk speed `[+192]` * pooled 1/30 (0x820ED704) or, with bit 0 of `[+663]`, run speed `[+196]` * 2/30
+  (0x82072048); written by the spawn sub_82330B68 and the update's state change. `--diag_crowd` on
+  `bench/stand60.rec --teleport=1000,80,-1000` (crackdown_004-006, wt-fps120): mean walk 1.2-1.5 m/s at 30, 2.8 at 60,
+  5.2 at 120; runners ~5 / 9.5-13 / 19-25 m/s. So the crowd has run 2x at 60 since 60 fps shipped.
+  `--sim_crowd_30hz` (default on, `hooks_framerate.cpp`) scales each step by step * 30 for the call: walk 1.55 at 60,
+  1.42 at 120, 1.72 at 144 (crackdown_007-009); runners 5-9 m/s at 120 vs 4.6-6.6 at 30 (crackdown_010/011). Left: the
+  per-call 0.05 velocity smoothing (0x82070470) lets peds turn faster at high frame rates. Update build: sub_8236D428,
+  crowd 0x82EF8010, step at +160.
 - **Director VO / wave safety timeout** (2026-10-14): `0x8225AB30` initializes
   `deadline = floor(samples/48000)*30+70`; `0x8225B254` advances elapsed by one
   per update, and `0x8225B274` calls source Stop when elapsed exceeds deadline.
