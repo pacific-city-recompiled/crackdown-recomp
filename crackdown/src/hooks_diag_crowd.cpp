@@ -9,8 +9,7 @@
 // sub_82330B68 and on a state change in the update (disassembly). Neither
 // literal follows the frame time (fixed by --sim_crowd_30hz, hooks_framerate.cpp),
 // so this logs how fast the crowd really moves: calls per second and the mean
-// real-time speed of walking and running pedestrians, once per second. Disc
-// build only (the update moved the members; see the hook).
+// real-time speed of walking and running pedestrians, once per second.
 
 #include "generated/default/crackdown_init.h"
 #include "game_addresses.h"
@@ -28,9 +27,14 @@ REXCVAR_DEFINE_BOOL(diag_crowd, false, "Crackdown",
                     "Diagnostic: log the crowd pedestrians' update rate and real-time walk/run "
                     "speed once per second (sub_82338220)");
 
-#if !CRACKDOWN_TU  // disc addresses only (diagnostic)
 namespace {
-constexpr uint32_t kCrowdBase = 0x82E61D30;
+// Update build (sub_8236D428): crowd object 0x82EF8010, position +112, step +160.
+constexpr uint32_t kCrowdBase = CD_ADDR(0x82E61D30, 0x82EF8010);
+constexpr uint32_t kPosition = CD_ADDR(128, 112);
+constexpr uint32_t kStep = CD_ADDR(180, 160);
+// A runner's stock step is run speed * 2/30 (about 0.19), a walker's walk
+// speed * 1/30 (about 0.05); the +663 run bit has no update-build offset yet.
+constexpr float kRunStep = 0.1f;
 
 struct Sample {
   float x, z;
@@ -54,10 +58,11 @@ void LogCrowd(uint8_t* base) {
   for (uint32_t i = 0; i < count && i < 512; ++i) {
     const uint32_t ped = REX_LOAD_U32(kCrowdBase + 6024 + 4 * i);
     if (!ped) continue;
-    const Sample s{LoadF(ped + 128), LoadF(ped + 136)};
+    const Sample s{LoadF(ped + kPosition), LoadF(ped + kPosition + 8)};
     cur[ped] = s;
-    const bool run = REX_LOAD_U8(ped + 663) & 1;
-    (run ? step_run : step_walk) = LoadF(ped + 180);
+    const float step = LoadF(ped + kStep);
+    const bool run = step > kRunStep;
+    (run ? step_run : step_walk) = step;
     auto it = prev.find(ped);
     if (secs <= 0 || it == prev.end()) continue;
     const double d = std::hypot(s.x - it->second.x, s.z - it->second.z);
@@ -77,13 +82,7 @@ void LogCrowd(uint8_t* base) {
 }
 }  // namespace
 
-#endif
-
 // Called at the top of the crowd update hook (hooks_framerate.cpp).
 void CrackdownLogCrowd(uint8_t* base) {
-#if !CRACKDOWN_TU
   if (REXCVAR_GET(diag_crowd)) LogCrowd(base);
-#else
-  (void)base;
-#endif
 }

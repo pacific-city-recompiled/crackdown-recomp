@@ -38,14 +38,27 @@ Checked so far:
 - **Crowd pedestrians** (2026-10-26, the "NPCs sprinting far too fast at 120" report): the ambient crowd update
   sub_82338220 (once per unpaused frame: sub_82324330 -> sub_82343730) moves each ped by `[ped+184] * [ped+180]` per call,
   where `[ped+180]` = walk speed `[+192]` * pooled 1/30 (0x820ED704) or, with bit 0 of `[+663]`, run speed `[+196]` * 2/30
-  (0x82072048); written by the spawn sub_82330B68 and the update's state change. `--diag_crowd` on
-  `bench/stand60.rec --teleport=1000,80,-1000` (crackdown_004-006, wt-fps120): mean walk 1.2-1.5 m/s at 30, 2.8 at 60,
-  5.2 at 120; runners ~5 / 9.5-13 / 19-25 m/s. So the crowd has run 2x at 60 since 60 fps shipped.
-  `--sim_crowd_30hz` (default on, `hooks_framerate.cpp`) scales each step by step * 30 for the call: walk 1.55 at 60,
-  1.42 at 120, 1.72 at 144 (crackdown_007-009); runners 5-9 m/s at 120 vs 4.6-6.6 at 30 (crackdown_010/011). Left: the
-  per-call 0.05 velocity smoothing (0x82070470) lets peds turn faster at high frame rates. Update build: sub_8236D428,
-  crowd 0x82EF8010, step at +160.
-- **Director VO / wave safety timeout** (2026-10-14): `0x8225AB30` initializes
+  (0x82072048); written by the spawn sub_82330B68 and the update's state change. So the crowd has run 2x at 60 since 60
+  fps shipped, 4x at 120. `--sim_crowd_30hz` (default on, `hooks_framerate.cpp`) scales each step by step * 30 for the
+  call. Update build: sub_8236D428, crowd 0x82EF8010, position +112, step +160. Measured with `--diag_crowd` (mean
+  real-time speed over 1 s windows; runners = stock step > 0.1) on `bench/stand60.rec --teleport=1000,80,-1000`, no save:
+
+  | Build, rate | Walk m/s | Run m/s (mean, range) | Log (wt-fps120) |
+  |---|---|---|---|
+  | disc 30 (stock) | 1.25 | 4.9 (1.2-5.8) | crackdown_012 |
+  | disc 60, fix off (shipped) | 2.8 | 9.5-13 | crackdown_006 |
+  | disc 120, fix off | 5.2 | 19-25 | crackdown_004 |
+  | disc 60 | 1.25 | 5.0 (1.0-7.5) | crackdown_013 |
+  | disc 120 | 1.41 | 6.8 (1.3-11.3) | crackdown_014 |
+  | disc 144 | 1.39 | 6.4 (1.7-8.2) | crackdown_015 |
+  | update 120, fix off | 5.18 | 14.0 (0.1-25.1) | update crackdown_003 |
+  | update 60 | 1.27 | 5.8 (1.3-9.1) | update crackdown_001 |
+  | update 120 | 1.36 | 6.7 (2.0-10.0) | update crackdown_002 |
+  | update 144 | 1.37 | 7.9 (3.5-12.0) | update crackdown_024 |
+
+  Left: runners average 1.3-1.6x their 30 fps speed at 120/144 (walkers match). Making the per-update 0.05 move
+  smoothing (`lfs f20` at 0x823383AC) frame-rate independent made it worse (walk 1.85-1.95 m/s at 120/144), so it was
+  dropped; the cause of the runner remainder is open.- **Director VO / wave safety timeout** (2026-10-14): `0x8225AB30` initializes
   `deadline = floor(samples/48000)*30+70`; `0x8225B254` advances elapsed by one
   per update, and `0x8225B274` calls source Stop when elapsed exceeds deadline.
   `--sim_audio_timeout_30hz` (60 fps default, user override wins) retimes only
@@ -58,6 +71,28 @@ Checked so far:
   Addresses, disassembly, all bucket tables and log receipts: `re-notes.md`,
   "Director VO timeout investigation". Audible confirmation remains with owner.
 
+## 120 / 144 fps regression check (2026-10-26, branch fps-above-60)
+
+Austin's rule (plan-1.0.md "PC check 3"): every rate above 60 is checked for audio, stairs, physics and driving
+before it ships. Release builds of fps-above-60 (disc and update), windowed, muted, isolated user data (a copy of a
+disc-format save; stand60 runs from no save). Logs: `out/wt-fps120/crackdown{,_tu}/out/build/win-amd64-release/logs`,
+disc crackdown_030-047, update crackdown_005-023. The update's 30 fps replays land on the wrong menu item, so its
+baseline is 60.
+
+| Check | disc 30 | disc 120 | disc 144 | update 60 | update 120 | update 144 |
+|---|---|---|---|---|---|---|
+| Stairs peak (stairs_tp.rec, `--diag_char_proxy`), m/s | 10.0 | 10.2 | 10.7 | 9.8 | 10.3 | 10.6 |
+| Car at 0.5 / 1.0 / 1.5 s (car_tp.rec, garage), m/s | 7.8 / 14.0 / 18.4 | 7.4 / 13.5 / 18.3 | 7.6 / 13.5 / 18.4 | 6.5 / 12.6 / 18.0 | 6.9 / 13.1 / 18.2 | 7.7 / 13.7 / 18.5 |
+| Havok step dt, median s (`--diag_physics_dt`) | 0.033 | 0.009 | 0.008 | 0.017 | 0.008 | 0.008 |
+| Agency stairs drive: health bar 163 px -> after, hits (dv m/s) | 140 (14%), 17 | 143 (12%), 12 + 28 | 129 (21%), 16 + 21 | 136 (17%), 22 + 14 | 128 (21%), 12 + 17 | 119 (27%), 14 + 15 + 24 |
+| Director line VOA_Eng[378] (12106 ms), played ms (`--diag_audio`) | 12268 | 12183 | 12182 | 12207 | 12192 | 12189 |
+| drive60.rec completes; non-looping clips cut short | yes; 18/40 | yes; 16/89 | yes; 5/55 | yes; 26/74 | yes; 15/81 | yes; 5/52 |
+
+Damage follows the hits (more and harder hits in the 144 / update runs), with no instant wreck at any rate. The
+12 s Director line would be stopped near 3.6 s at 120 fps if the wave safety timeout still counted frames
+(deadline floor(12.1) * 30 + 70 = 430 ticks); it plays to the end at every rate. "Cut short" counts every
+non-looping clip stopped before 90% of its length, which the game does to SFX all the time; it is not lower above
+60. Crowd speed: the table in "Crowd pedestrians" above.
 ```
 sub_82142158 30@82072038
 sub_821422D0 VARFLAGx2
