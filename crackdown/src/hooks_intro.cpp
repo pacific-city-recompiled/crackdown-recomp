@@ -75,8 +75,27 @@ CD_HOOK_RAW(CD_SUB(82742B28, 827CBEA8)) {
     std::replace(canonical.begin(), canonical.end(), '/', '\\');
     const bool menu = canonical == "game:\\xuifrontend\\menuhud_3.xzp";
     const bool scene = canonical == "game:\\xuifrontend\\scene.xzp";
-    if (menu || scene) {
-      const uint32_t replacement = menu ? crackdown::PCMenuGuestPath() : crackdown::PCSceneGuestPath();
+    // Title update + Free-For-All Pack: the pause menu is the pack's
+    // <mount>:\XUIFrontEnd\Scene_CommonDLC.xzp (save0:/save1:), opened mixed-case.
+    std::string lower = canonical;
+    std::transform(lower.begin(), lower.end(), lower.begin(),
+                   [](char c) { return c >= 'A' && c <= 'Z' ? static_cast<char>(c + 32) : c; });
+    constexpr std::string_view kDlcMenu = ":\\xuifrontend\\scene_commondlc.xzp";
+    // The pack's Digest2.txt MD5 check reads files through here too, so it gets
+    // the copy that lists the patched menu's MD5 (see xui_patch.cpp).
+    constexpr std::string_view kDlcDigest = ":\\digest2.txt";
+    const auto at_mount_root = [&](std::string_view suffix) {
+      return lower.size() > suffix.size() && lower.ends_with(suffix) &&
+             lower.find('\\') == lower.size() - suffix.size() + 1 && !lower.starts_with("pcmod:") &&
+             !lower.starts_with("game:");
+    };
+    const bool dlc = at_mount_root(kDlcMenu);
+    const bool digest = at_mount_root(kDlcDigest);
+    if (menu || scene || dlc || digest) {
+      const uint32_t replacement = menu    ? crackdown::PCMenuGuestPath()
+                                   : scene ? crackdown::PCSceneGuestPath()
+                                   : dlc   ? crackdown::PCDlcMenuGuestPath()
+                                           : crackdown::PCDlcDigestGuestPath();
       if (replacement) {
         const PPCContext original = ctx;
         ctx.r3.u64 = replacement;
@@ -87,10 +106,12 @@ CD_HOOK_RAW(CD_SUB(82742B28, 827CBEA8)) {
           ctx = original;
           CD_IMP(82742B28, 827CBEA8)(ctx, base);
         } else {
-          static std::atomic<bool> logged_menu{false}, logged_scene{false};
-          auto& logged = menu ? logged_menu : logged_scene;
+          static std::atomic<bool> logged_menu{false}, logged_scene{false}, logged_dlc{false},
+              logged_digest{false};
+          auto& logged = menu ? logged_menu : scene ? logged_scene : dlc ? logged_dlc : logged_digest;
           if (!logged.exchange(true))
-            REXLOG_INFO("pc menu: redirect {} -> pcmod: (verified {})", path, menu ? "menuHUD_3" : "Scene");
+            REXLOG_INFO("pc menu: redirect {} -> pcmod: (verified {})", path,
+                        menu ? "menuHUD_3" : scene ? "Scene" : dlc ? "Scene_CommonDLC" : "Digest2.txt");
         }
         return;
       }

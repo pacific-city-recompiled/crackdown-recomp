@@ -62,7 +62,10 @@ class CrackdownApp : public rex::ReXApp {
             if (window()) window()->RequestClose();
           });
         });
-    crackdown::PreparePCMenu(runtime(), game_data_root(), cache_root());
+    // Marketplace packs live under --dlc_root (SDK patch 0025) when the launcher sets it.
+    const auto dlc_root = rex::cvar::Query<std::string>("dlc_root");
+    crackdown::PreparePCMenu(runtime(), game_data_root(), cache_root(),
+                             dlc_root.empty() ? user_data_root() : std::filesystem::path(rex::to_path(dlc_root)));
 #if !CRACKDOWN_TU  // the AP bridge is not ported to the title update yet
     crackdown::ap::Initialize(user_data_root());
 #endif
