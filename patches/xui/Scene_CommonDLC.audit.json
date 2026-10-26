@@ -1,0 +1,20 @@
+{
+  "path": "DLC/XUIFrontEnd/Scene_CommonDLC.xzp (Free-For-All Pack AA10729E62721B4EAF674486684E31CD9B94AC4F4D)",
+  "patch": "DLC/Scene_CommonDLC.xzp.xpatch",
+  "original_sha256": "66f67cd7b0803d67dd05d578babe0abbe143e1c4aab7355ed381980d7aa5d9bf",
+  "result_sha256": "a5f67a7448cb18c9842347ef8a5533c900df1685a664662be754f04784293357",
+  "result_bytes": 15807987,
+  "entries": 231,
+  "scenes": 18,
+  "localizations": 0,
+  "patch_bytes": 8220,
+  "literal_bytes": 841,
+  "copy_bytes": 15807146,
+  "operations": 559,
+  "longest_insert": 144,
+  "original_match_threshold": 16,
+  "original_matching_literal_windows": 0,
+  "patch_sha256": "1473217a3f9aa8986d29cc95d922b0213ae578025a28814a6cf8a856599618da",
+  "recipe": "python3 -m tools.xui.mod_menus --dlc /path/to/FreeForAll/XUIFrontEnd/Scene_CommonDLC.xzp",
+  "scope": "Title update pause menu: menuHud_3.xur gains pcSettings (Tab1) and quitGame (Tab2); every other entry is byte-identical."
+}

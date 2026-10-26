@@ -66,8 +66,7 @@ def nav_cycle(editor, controls):
         editor.set_property(obj, 'NavDown', controls[(i+1) % len(controls)]['id'])
 
 
-def modify_menu(data):
-    editor = edit.Editor.parse(data)
+def add_pc_settings(editor):
     tab = editor.find('Menu/Menu/Tab1')
     source = editor.find('Menu/Menu/Tab1/displaySetup')
     clone = editor.clone(source, tab, 'pcSettings', tab['children'].index(source)+1)
@@ -82,19 +81,44 @@ def modify_menu(data):
     for i, obj in enumerate(controls):
         editor.set_property(obj, 'Position', [259.0, 372.6 + 31.5*i, 0.0])
         editor.set_property(obj, 'Height', 31.5)
+
+
+def add_quit_game(editor, order, top, pitch):
+    """Clone Tab2/quit as quitGame below it; order lists Tab2's rows top to bottom."""
     tab2 = editor.find('Menu/Menu/Tab2')
     quit = editor.find('Menu/Menu/Tab2/quit')
     desktop = editor.clone(quit, tab2, 'quitGame', tab2['children'].index(quit)+1)
     for name, value in [('PressPath', ''), ('Text', 'Quit to Desktop')]:
         editor.set_property(desktop, name, value)
     editor.clone_timelines(tab2, quit, desktop)
-    controls2 = [editor.find('Menu/Menu/Tab2/'+name)
-                 for name in ['campaign', 'timeTrials', 'DLC', 'extract', 'quit', 'quitGame']]
+    controls2 = [editor.find('Menu/Menu/Tab2/'+name) for name in order + ['quitGame']]
     nav_cycle(editor, controls2)
     for i, obj in enumerate(controls2):
-        editor.set_property(obj, 'Position', [515.0, 372.6 + 31.5*i, 0.0])
-        editor.set_property(obj, 'Height', 31.5)
+        editor.set_property(obj, 'Position', [515.0, top + pitch*i, 0.0])
+        editor.set_property(obj, 'Height', pitch)
     editor.set_property(editor.find('Menu/Menu/Tab2/mainMenuButton'), 'NavUp', 'quitGame')
+
+
+def modify_menu(data):
+    editor = edit.Editor.parse(data)
+    add_pc_settings(editor)
+    add_quit_game(editor, ['campaign', 'timeTrials', 'DLC', 'extract', 'quit'], 372.6, 31.5)
+    return editor.finish()
+
+
+# Free-For-All Pack (Marketplace DLC) XUIFrontEnd/Scene_CommonDLC.xzp. With the
+# title update the game loads the pause menu from this package's menuHud_3.xur
+# instead of the disc's menuHUD_3.xzp. Its Tab2 has seven 37px rows at 38px pitch
+# (296.6 to 561.6 px, Street Racing and Keys to the City added); Tab1 matches the disc.
+DLC_MENU_SHA256 = '66f67cd7b0803d67dd05d578babe0abbe143e1c4aab7355ed381980d7aa5d9bf'
+DLC_TAB2 = ['campaign', 'timeTrials', 'StreetRacing', 'CheatMode', 'DLC', 'extract', 'quit']
+
+
+def modify_dlc_menu(data):
+    editor = edit.Editor.parse(data)
+    add_pc_settings(editor)
+    # Eight rows in the same 265px the seven original rows occupy.
+    add_quit_game(editor, DLC_TAB2, 296.6, 265.0 / 8)
     return editor.finish()
 
 
@@ -365,11 +389,49 @@ def run(game, manifest_text, output=REPO/'out/xui', manifest_source=MANIFEST_SOU
     return report
 
 
+def modify_dlc_package(original):
+    entries = xzp.parse(original)
+    if sum(e.name == 'menuHud_3.xur' for e in entries) != 1:
+        raise ValueError('unexpected DLC menu package')
+    return xzp.build([xzp.Entry(e.name, modify_dlc_menu(e.data) if e.name == 'menuHud_3.xur' else e.data)
+                      for e in entries])
+
+
+def run_dlc(package, output=REPO/'out/xui'):
+    """Scene_CommonDLC.xzp from an unpacked Free-For-All Pack -> Scene_CommonDLC.xzp.xpatch."""
+    original = Path(package).read_bytes()
+    if hashlib.sha256(original).hexdigest() != DLC_MENU_SHA256:
+        raise ValueError('not the Free-For-All Pack Scene_CommonDLC.xzp (SHA256 mismatch)')
+    validate_package(original)
+    result = modify_dlc_package(original)
+    parsed = validate_package(result)
+    patch = xpatch.generate(original, result, {})
+    stats = xpatch.audit(original, patch)
+    if stats['original_matching_literal_windows']:
+        raise ValueError('patch literals contain original game spans')
+    if xpatch.apply(original, patch) != result:
+        raise ValueError('patch result mismatch')
+    patch_path = xzp.output_root(output/'patches/DLC/Scene_CommonDLC.xzp.xpatch')
+    xzp.write_output(patch_path, patch)
+    row = dict(path='DLC/XUIFrontEnd/Scene_CommonDLC.xzp', original_sha256=DLC_MENU_SHA256,
+               result_sha256=hashlib.sha256(result).hexdigest(), result_bytes=len(result), **parsed, **stats)
+    print(json.dumps(row, indent=2), flush=True)
+    return row
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('game', type=Path)
+    parser.add_argument('game', type=Path, nargs='?')
     parser.add_argument('--manifest', type=Path, help='explicit trusted manifest override (same tab-separated format)')
+    parser.add_argument('--dlc', type=Path, metavar='SCENE_COMMONDLC_XZP',
+                        help='also patch the Free-For-All Pack XUIFrontEnd/Scene_CommonDLC.xzp (title update menu)')
     args = parser.parse_args()
+    if args.dlc:
+        run_dlc(args.dlc)
+    if not args.game:
+        if not args.dlc:
+            parser.error('game folder or --dlc required')
+        return
     text = args.manifest.read_text() if args.manifest else subprocess.run(
         ['git', 'show', MANIFEST_SOURCE], cwd=REPO, check=True, capture_output=True, text=True).stdout
     run(args.game, text, manifest_source=str(args.manifest) if args.manifest else MANIFEST_SOURCE)

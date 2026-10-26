@@ -48,3 +48,15 @@ add_custom_target(crackdown_tu_xui_patch ALL
     DEPENDS "${PC_MENU_PATCH}" "${PC_SCENE_PATCH}"
     VERBATIM)
 add_dependencies(crackdown_tu crackdown_tu_xui_patch)
+
+# The update's pause menu comes from the Free-For-All Pack's Scene_CommonDLC.xzp. Its audited patch
+# is compiled in (8 KB), so release zips and the launcher's updater allowlist (1.2.2 and older
+# accept only xui/Scene.xpatch and xui/menuHUD_3.xpatch) stay as they are.
+set(PC_DLC_MENU_PATCH "${CMAKE_CURRENT_SOURCE_DIR}/../patches/xui/Scene_CommonDLC.xpatch")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${PC_DLC_MENU_PATCH}")
+file(READ "${PC_DLC_MENU_PATCH}" PC_DLC_MENU_HEX HEX)
+string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," PC_DLC_MENU_BYTES "${PC_DLC_MENU_HEX}")
+file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/generated_xui/scene_commondlc_xpatch.inc"
+     CONTENT "${PC_DLC_MENU_BYTES}\n" @ONLY)
+target_include_directories(crackdown_tu PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated_xui")
+target_compile_definitions(crackdown_tu PRIVATE CRACKDOWN_DLC_MENU_PATCH=1)

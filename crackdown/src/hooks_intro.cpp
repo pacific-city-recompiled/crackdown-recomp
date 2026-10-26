@@ -75,8 +75,18 @@ CD_HOOK_RAW(CD_SUB(82742B28, 827CBEA8)) {
     std::replace(canonical.begin(), canonical.end(), '/', '\\');
     const bool menu = canonical == "game:\\xuifrontend\\menuhud_3.xzp";
     const bool scene = canonical == "game:\\xuifrontend\\scene.xzp";
-    if (menu || scene) {
-      const uint32_t replacement = menu ? crackdown::PCMenuGuestPath() : crackdown::PCSceneGuestPath();
+    // Title update + Free-For-All Pack: the pause menu is the pack's
+    // <mount>:\XUIFrontEnd\Scene_CommonDLC.xzp (save0:/save1:), opened mixed-case.
+    std::string lower = canonical;
+    std::transform(lower.begin(), lower.end(), lower.begin(),
+                   [](char c) { return c >= 'A' && c <= 'Z' ? static_cast<char>(c + 32) : c; });
+    constexpr std::string_view kDlcMenu = ":\\xuifrontend\\scene_commondlc.xzp";
+    const bool dlc = lower.size() > kDlcMenu.size() && lower.ends_with(kDlcMenu) &&
+                     lower.find('\\') == lower.size() - kDlcMenu.size() + 1 && !lower.starts_with("pcmod:");
+    if (menu || scene || dlc) {
+      const uint32_t replacement = menu    ? crackdown::PCMenuGuestPath()
+                                   : scene ? crackdown::PCSceneGuestPath()
+                                           : crackdown::PCDlcMenuGuestPath();
       if (replacement) {
         const PPCContext original = ctx;
         ctx.r3.u64 = replacement;
@@ -87,10 +97,11 @@ CD_HOOK_RAW(CD_SUB(82742B28, 827CBEA8)) {
           ctx = original;
           CD_IMP(82742B28, 827CBEA8)(ctx, base);
         } else {
-          static std::atomic<bool> logged_menu{false}, logged_scene{false};
-          auto& logged = menu ? logged_menu : logged_scene;
+          static std::atomic<bool> logged_menu{false}, logged_scene{false}, logged_dlc{false};
+          auto& logged = menu ? logged_menu : scene ? logged_scene : logged_dlc;
           if (!logged.exchange(true))
-            REXLOG_INFO("pc menu: redirect {} -> pcmod: (verified {})", path, menu ? "menuHUD_3" : "Scene");
+            REXLOG_INFO("pc menu: redirect {} -> pcmod: (verified {})", path,
+                        menu ? "menuHUD_3" : scene ? "Scene" : "Scene_CommonDLC");
         }
         return;
       }
