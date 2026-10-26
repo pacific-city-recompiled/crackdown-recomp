@@ -66,6 +66,12 @@ void create_profile(const fs::path& user, const std::string& name);
 fs::path profile_folder(const fs::path& user, const std::string& name);
 // Always absolute save and shared cache arguments, including the default profile.
 std::vector<std::string> profile_args(const fs::path& user, const std::string& name);
+// Crackdown 1 saves (<saves>/<profile id>/4D5307DC/00000001/Crackdown.sav/Crackdown.sav) start with
+// "CRAK" and a big-endian version: 4 from the disc build, 6 from the title update build. The disc
+// loader sub_8254CAD8 accepts only 4 ("Save Game Damaged", and Yes overwrites the save); the update's
+// loader takes versions 1-28 (sub_825B7598 in the update), so it reads disc saves. Returns the saves only
+// the title update can read.
+std::vector<fs::path> title_update_saves(const fs::path& saves);
 // Archipelago connection for one profile, in <profile>/archipelago/connection.toml beside the
 // game's session sidecar. Never in crackdown.toml, so "Copy system info" can't include the password;
 // the game reads the password from this file (not argv/environment/cvars, which can reach logs).

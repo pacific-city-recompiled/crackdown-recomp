@@ -305,7 +305,7 @@ int main(int argc,char** argv) {
   };
   // Explicit persisted consent is required before the first startup request.
   if(auto_updates&&!ask_updates&&!is_smoke) check_updates();
-  enum class Dialog { none,install,browser,keyboard,updates,quit,package };
+  enum class Dialog { none,install,browser,keyboard,updates,quit,package,save_warning };
   Dialog dialog=Dialog::none; bool open_dialog=false,dialog_focus=false,folder_browser=false;
   int package_kind=0;  // Dialog::package and its file browser: 1 title update, 2 DLC (0: disc browser)
   fs::path browse=home; std::vector<fs::directory_entry> browse_entries; std::vector<fs::path> browse_roots;
@@ -340,6 +340,8 @@ int main(int argc,char** argv) {
     leftovers=writable?unfinished_imports(ghome,game):std::vector<fs::path>{};
     if(writable && !manifest.empty() && fs::is_directory(game)) { begin(game,Job::quick_check); busy=true; }
   };
+  // Title update saves the disc build would call damaged (core.h title_update_saves); set when Play confirmed them.
+  std::vector<fs::path> disc_unreadable; bool disc_confirmed=false;
   auto launch=[&] {
     try {
       for(const char* key:kApConfigKeys) changes[key]=std::nullopt;
@@ -362,6 +364,12 @@ int main(int argc,char** argv) {
       // Archipelago runs on the disc exe only (the bridge isn't ported to the update).
       const char* exe=gp->exe;
       if(update_exe_ready()&&use_title_update&&extra.empty()) { exe=gp->update_exe; args.push_back("--update_data_root="+utf8(ghome/"tu")); }
+      // The disc build rejects a title update save and offers to overwrite it: ask first (Back is the default).
+      if(gp->update_exe&&exe==gp->exe&&!disc_confirmed) {
+        disc_unreadable=title_update_saves(profile_folder(user,profile));
+        if(!disc_unreadable.empty()) { show_dialog(Dialog::save_warning); return; }
+      }
+      disc_confirmed=false;
       process.start(ghome,args,exe); error.clear(); crash.clear(); if(close_on_play) quit=true;
     } catch(const std::exception& e) { error=e.what(); verified=false; visuals->clear_art(); }
   };
@@ -872,6 +880,13 @@ int main(int argc,char** argv) {
           { std::lock_guard lock(picker.mutex); picker.pending=true; picker.folder=false; picker.kind=package_kind; }
           SDL_ShowOpenFileDialog(picked,&picker,window,nullptr,0,nullptr,false); close_dialog();
         }
+      } else if(dialog==Dialog::save_warning) {
+        ImGui::TextUnformatted("TITLE UPDATE SAVE");
+        ImGui::TextWrapped("This profile's save was made by the title update build, and Play is about to start the disc build (%s). The disc build can't read it: it will say \"Save Game Damaged\" and ask whether to overwrite it. Answering Yes there replaces your title update progress with a new game.",
+          !update_exe_ready()?"the title update isn't installed":!ap_args(profile.empty()?ApConnection{}:ap).empty()?"Archipelago runs on the disc build":"the title update is turned off");
+        for(const auto& save:disc_unreadable) ImGui::TextDisabled("%s",utf8(save).c_str());
+        ImGui::TextWrapped("To keep it, go back and turn the title update on, or play another profile.");
+        if(ImGui::Button("Play the disc build anyway")) { close_dialog(); disc_confirmed=true; launch(); }
       } else if(dialog==Dialog::quit) {
         ImGui::TextUnformatted("QUIT LAUNCHER?"); if(!changes.empty()) ImGui::TextWrapped("There are unsaved game settings."); modal_focus();
         if(ImGui::Button("Quit")) { quit=true; close_dialog(); }
@@ -879,6 +894,7 @@ int main(int argc,char** argv) {
       }
       if(dialog!=Dialog::none) {
         if(dialog!=Dialog::browser) ImGui::Spacing();
+        if(dialog==Dialog::save_warning) modal_focus();
         if(ImGui::Button("Back") || (back&&!child_popup&&!modal_child_before&&!editing_before)) {
           if(dialog==Dialog::browser) { dialog=package_kind?Dialog::package:Dialog::install; dialog_focus=true; }
           else close_dialog();
