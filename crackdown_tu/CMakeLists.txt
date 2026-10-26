@@ -18,6 +18,7 @@ add_executable(crackdown_tu WIN32
     ${CD_SRC}/host_tuning.cpp
     ${CD_SRC}/hooks_diag_audio.cpp
     ${CD_SRC}/hooks_diag_physics.cpp
+    ${CD_SRC}/hooks_diag_crowd.cpp
     ${CD_SRC}/hooks_intro.cpp
     ${CD_SRC}/xui_patch.cpp
     ${CD_SRC}/hooks_pc_options.cpp
