@@ -34,6 +34,7 @@ constexpr std::string_view kDevice = "\\Device\\CrackdownPCMod";
 std::atomic<uint32_t> guest_path{0};
 std::atomic<uint32_t> scene_path{0};
 std::atomic<uint32_t> dlc_menu_path{0};
+std::atomic<uint32_t> dlc_digest_path{0};
 thread_local std::chrono::steady_clock::duration hash_time{};
 std::atomic<bool> warned{false};
 #if CRACKDOWN_DLC_MENU_PATCH
@@ -41,6 +42,15 @@ std::atomic<bool> warned{false};
 constexpr uint8_t kDlcMenuPatch[] = {
 #include "scene_commondlc_xpatch.inc"
 };
+// The pack's Digest2.txt lists an MD5 per file, and the game checks them by
+// reading each file through CreateFileA when it mounts the pack, so it would
+// reject the patched Scene_CommonDLC.xzp ("content ... invalid or corrupt",
+// PC run 2026-10-26, crackdown_001). The verified copy served instead differs
+// only in that file's MD5 (original 928a614a..., patched 4804decb...).
+constexpr std::string_view kDigestSha256 = "19bc8e1c562a020ce9dc73ce16b3eccf661f99b6ff362e0253a58a21b0bd87c4";
+constexpr std::string_view kDigestResultSha256 = "bd1031592cd3ac6a04124154a3b09f8a982255c57b8aaf1c4c7986db2033b773";
+constexpr std::string_view kMenuMd5 = "928a614aa17d5d22685c4e57fbb4d19d";
+constexpr std::string_view kPatchedMenuMd5 = "4804decba26936b0dacc7e459a996315";
 #endif
 
 [[noreturn]] void Fail(const char* reason) { throw std::runtime_error(reason); }
@@ -195,6 +205,7 @@ std::vector<uint8_t> ApplyXuiPatch(std::span<const uint8_t> original,
 
 void DisablePCMenu(std::string_view reason) {
   dlc_menu_path.store(0, std::memory_order_release);
+  dlc_digest_path.store(0, std::memory_order_release);
   guest_path.store(0, std::memory_order_release);
   scene_path.store(0, std::memory_order_release);
   if (!warned.exchange(true)) REXLOG_WARN("pc menu: disabled; using original menu ({})", reason);
@@ -214,10 +225,14 @@ uint32_t PCDlcMenuGuestPath() {
   return dlc_menu_path.load(std::memory_order_acquire);
 }
 
+uint32_t PCDlcDigestGuestPath() {
+  return dlc_digest_path.load(std::memory_order_acquire);
+}
+
 void PreparePCMenu(rex::Runtime* runtime, const fs::path& game_root, const fs::path& cache_root,
                    const fs::path& content_root) {
   if (!REXCVAR_GET(pc_menu_mod)) { REXLOG_INFO("pc menu: disabled by --pc_menu_mod=false"); return; }
-  uint32_t allocations[3]{};
+  uint32_t allocations[4]{};
   bool mounted = false;
   bool linked = false;
   auto* vfs = runtime->file_system();
@@ -253,7 +268,7 @@ void PreparePCMenu(rex::Runtime* runtime, const fs::path& game_root, const fs::p
                   std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count(),
                   original.size());
     }
-    std::string dlc_guest;
+    std::string dlc_guest, dlc_digest_guest;
 #if CRACKDOWN_DLC_MENU_PATCH
     // Third package, title update only: the update's pause menu comes from the
     // Free-For-All Pack (Scene_CommonDLC.xzp#menuHud_3.xur), not menuHUD_3.xzp.
@@ -263,9 +278,28 @@ void PreparePCMenu(rex::Runtime* runtime, const fs::path& game_root, const fs::p
       hash_time = {};
       const auto candidates = DlcMenuCandidates(content_root);
       std::vector<uint8_t> result;
+      std::vector<uint8_t> digest;
       for (const auto& candidate : candidates) {
-        try { result = ApplyXuiPatch(ReadFile(candidate, kMaxPackage), kDlcMenuPatch); break; }
-        catch (const std::exception& error) {
+        try {
+          result = ApplyXuiPatch(ReadFile(candidate, kMaxPackage), kDlcMenuPatch);
+          // <package>/XUIFrontEnd/Scene_CommonDLC.xzp -> <package>/Digest2.txt
+          const auto package = candidate.parent_path().parent_path();
+          fs::path digest_path;
+          for (const auto& entry : fs::directory_iterator(package))
+            if (Lower(entry.path().filename().string()) == "digest2.txt") digest_path = entry.path();
+          if (digest_path.empty()) Fail("pack has no Digest2.txt");
+          digest = ReadFile(digest_path, 1024 * 1024);
+          if (Hash(digest) != kDigestSha256) Fail("Digest2.txt SHA256 mismatch");
+          std::string text(digest.begin(), digest.end());
+          const auto at = text.find(kMenuMd5);
+          if (at == std::string::npos || text.find(kMenuMd5, at + 1) != std::string::npos)
+            Fail("Digest2.txt menu entry not unique");
+          text.replace(at, kMenuMd5.size(), kPatchedMenuMd5);
+          digest.assign(text.begin(), text.end());
+          if (Hash(digest) != kDigestResultSha256) Fail("patched Digest2.txt SHA256 mismatch");
+          break;
+        } catch (const std::exception& error) {
+          result.clear();
           REXLOG_WARN("pc menu: {} not patched ({})", candidate.string(), error.what());
         }
       }
@@ -279,8 +313,15 @@ void PreparePCMenu(rex::Runtime* runtime, const fs::path& game_root, const fs::p
         const std::string guest = "pcmod:\\" + filename;
         allocations[2] = runtime->memory()->SystemHeapAlloc(static_cast<uint32_t>(guest.size() + 1));
         if (!allocations[2]) Fail("PC menu guest path allocation failed");
+        const std::string digest_guest = "pcmod:\\Digest2." + std::string(kDigestResultSha256.substr(0, 8)) + ".txt";
+        Publish(folder / ("Digest2." + std::string(kDigestResultSha256.substr(0, 8)) + ".txt"), digest,
+                std::string(kDigestResultSha256));
+        allocations[3] = runtime->memory()->SystemHeapAlloc(static_cast<uint32_t>(digest_guest.size() + 1));
+        if (!allocations[3]) Fail("PC menu guest path allocation failed");
         dlc_guest = guest;
+        dlc_digest_guest = digest_guest;
         std::memcpy(runtime->memory()->TranslateVirtual(allocations[2]), dlc_guest.c_str(), dlc_guest.size() + 1);
+        std::memcpy(runtime->memory()->TranslateVirtual(allocations[3]), digest_guest.c_str(), digest_guest.size() + 1);
         REXLOG_INFO("pc menu: ready {} (result SHA256={}); cache {}; SHA256 {:.2f} ms; preparation {:.2f} ms",
                     dlc_guest, sha, reused ? "reused" : "rebuilt",
                     std::chrono::duration<double, std::milli>(hash_time).count(),
@@ -289,6 +330,7 @@ void PreparePCMenu(rex::Runtime* runtime, const fs::path& game_root, const fs::p
     } catch (const std::exception& error) {
       REXLOG_WARN("pc menu: DLC menu not patched ({})", error.what());
       dlc_guest.clear();
+      dlc_digest_guest.clear();
     }
 #endif
     // Separate read-only device: no game: remount, writes, or SDK changes.
@@ -300,10 +342,14 @@ void PreparePCMenu(rex::Runtime* runtime, const fs::path& game_root, const fs::p
     linked = true;
     for (const auto& guest : guests)
       if (!vfs->ResolvePath(guest)) Fail("PC menu guest path not reachable");
-    if (!dlc_guest.empty() && !vfs->ResolvePath(dlc_guest)) Fail("PC menu guest path not reachable");
+    for (const auto& guest : {dlc_guest, dlc_digest_guest})
+      if (!guest.empty() && !vfs->ResolvePath(guest)) Fail("PC menu guest path not reachable");
     // Publish both paths together only after both verified packages are ready.
     scene_path.store(allocations[1], std::memory_order_release);
-    if (!dlc_guest.empty()) dlc_menu_path.store(allocations[2], std::memory_order_release);
+    if (!dlc_guest.empty()) {
+      dlc_digest_path.store(allocations[3], std::memory_order_release);
+      dlc_menu_path.store(allocations[2], std::memory_order_release);
+    }
     guest_path.store(allocations[0], std::memory_order_release);
     REXLOG_INFO("pc menu: native PC Settings routing enabled (screen 26; unverified at runtime)");
   } catch (const std::exception& error) {

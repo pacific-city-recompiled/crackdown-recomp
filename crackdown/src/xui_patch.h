@@ -26,5 +26,7 @@ uint32_t PCMenuGuestPath();
 uint32_t PCSceneGuestPath();
 // Patched Free-For-All Pack Scene_CommonDLC.xzp, or 0 (pack missing, or no patch shipped).
 uint32_t PCDlcMenuGuestPath();
+// That pack's Digest2.txt with the patched menu's MD5, or 0; set together with the menu.
+uint32_t PCDlcDigestGuestPath();
 void DisablePCMenu(std::string_view reason);
 }  // namespace crackdown
