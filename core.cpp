@@ -13,6 +13,7 @@
 #include <array>
 #include <cctype>
 #include <chrono>
+#include <cstring>
 #include <fstream>
 #include <set>
 #include <sstream>
@@ -352,6 +353,21 @@ fs::path profile_folder(const fs::path& user, const std::string& name) {
 std::vector<std::string> profile_args(const fs::path& user, const std::string& name) {
   auto root=fs::absolute(user).lexically_normal();
   return {"--user_data_root=" + utf8(profile_folder(user, name)), "--cache_root=" + utf8(root/"cache")};
+}
+std::vector<fs::path> title_update_saves(const fs::path& saves) {
+  std::vector<fs::path> found;
+  std::error_code ec;
+  for (fs::directory_iterator it(saves, ec), end; !ec && it != end; it.increment(ec)) {
+    auto save=it->path()/"4D5307DC"/"00000001"/"Crackdown.sav"/"Crackdown.sav";
+    if (!it->is_directory(ec) || !fs::is_regular_file(save, ec)) continue;
+    unsigned char head[8]{};
+    std::ifstream in(save, std::ios::binary);
+    if (!in.read(reinterpret_cast<char*>(head), sizeof(head))) continue;
+    const uint32_t version=uint32_t(head[4])<<24 | uint32_t(head[5])<<16 | uint32_t(head[6])<<8 | head[7];
+    if (std::memcmp(head, "CRAK", 4) == 0 && version > 4 && version <= 28) found.push_back(save);
+  }
+  std::sort(found.begin(), found.end());
+  return found;
 }
 static fs::path ap_folder(const fs::path& saves) { no_links(saves/"archipelago"); return saves/"archipelago"; }
 ApConnection load_ap_connection(const fs::path& saves) {
