@@ -161,6 +161,23 @@ int main(int argc,char** argv) {
     auto pargs=profile_args(user,"Seed 42");
     require(pargs.size()==2 && pargs[0]=="--user_data_root="+utf8(user/"profiles"/"Seed 42") && pargs[1]=="--cache_root="+utf8(user/"cache"),"profile arguments share the cache");
     rejects([&]{profile_args(user,"missing");},"unknown profile");
+    { // Save format: "CRAK" + big-endian version, 4 = disc build, 6 = title update build.
+      auto saves=user/"profiles"/"alpha";
+      auto put=[&](const char* id,std::string head,bool body=true) {
+        auto dir=saves/id/"4D5307DC"/"00000001"/"Crackdown.sav"; fs::create_directories(dir);
+        write(dir/"Crackdown.sav",head+(body?std::string(64,'\1'):std::string()));
+        return dir/"Crackdown.sav";
+      };
+      require(title_update_saves(saves).empty(),"no saves, no warning");
+      put("B13EBABEBABEBABE",std::string("CRAK\0\0\0\4",8));
+      require(title_update_saves(saves).empty(),"disc save (version 4) needs no warning");
+      auto tu=put("B100000000000002",std::string("CRAK\0\0\0\6",8));
+      put("B100000000000003",std::string("JUNK\0\0\0\6",8)); put("B100000000000004","CRAK",false);
+      put("B100000000000005",std::string("CRAK\1\1\1\1",8));
+      require(title_update_saves(saves)==std::vector<fs::path>{tu},"title update save (version 6) found; other magic, short files and versions the update can't read ignored");
+      require(title_update_saves(user/"no such folder").empty(),"missing save folder is no warning");
+      fs::remove_all(saves); fs::create_directory(saves);
+    }
     std::error_code link_error;
     fs::create_directory_symlink(user,user/"profiles"/"Linked",link_error);
     if(!link_error) {
