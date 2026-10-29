@@ -46,6 +46,15 @@ inline constexpr GameProfile kGames[] = {
      "a5e49fc1ff7f6f65e6f95a7b5c4b9392bb9e38674d1237ac0e2f0149d05929d7", true, nullptr},
 };
 inline constexpr int kGameCount = int(sizeof(kGames) / sizeof(kGames[0]));
+// Single-game build (CMake LAUNCHER_GAME=cd1|cd2): the launcher an app launcher such as Quiver opens, at the top of
+// that game's release package. Quiver installs and updates the package, so this build has no game selector, no
+// update checks and no runtime download. -1: the combined launcher.
+#ifdef LAUNCHER_SINGLE_GAME
+inline constexpr int kSingleGame = LAUNCHER_SINGLE_GAME;
+#else
+inline constexpr int kSingleGame = -1;
+#endif
+static_assert(kSingleGame < kGameCount);
 // Accepts the profile id or the game's name as the Archipelago clients pass it (--game crackdown2).
 inline int game_index(const std::string& id) {
   for (int i = 0; i < kGameCount; ++i)
