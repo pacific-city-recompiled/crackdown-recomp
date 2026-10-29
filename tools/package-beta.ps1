@@ -5,7 +5,12 @@ param(
     # Visual Studio / Build Tools install whose vcvars64 builds the SDK. Its precompiled header
     # must come from the same MSVC version, so pass the install that built sdk/out/build/win-amd64
     # when vswhere's newest install differs (docs/launcher.md).
-    [string]$VisualStudio
+    [string]$VisualStudio,
+    # Single-game launcher build folder (gitlab.com/pacific-city-recompiled/launcher, -DLAUNCHER_GAME=cd1). Also builds
+    # the app-launcher ZIP Crackdown-Windows-<version>.zip (Quiver): CrackdownRecomp.exe at the top, this package in
+    # cd1\. Its name must not start with CrackdownRecomp-: the combined launcher refuses a release with two ZIPs of
+    # its prefix.
+    [string]$Launcher
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
@@ -196,20 +201,52 @@ foreach ($file in Get-ChildItem $stage -Recurse -File) {
 }
 # Not Compress-Archive: under Windows PowerShell 5.1 it writes '\' separators, which the
 # launcher's updater rejects as unsafe ZIP paths. Entry names here always use '/'.
+# One package directory per ZIP (both launchers strip it).
 Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
-$archive = [IO.Compression.ZipFile]::Open($zip, [IO.Compression.ZipArchiveMode]::Create)
-try {
-    foreach ($file in Get-ChildItem $stage -Recurse -File | Sort-Object FullName) {
-        $entry = $packageName + '/' + $file.FullName.Substring($stage.Length + 1).Replace('\', '/')
-        [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $file.FullName, $entry, [IO.Compression.CompressionLevel]::Optimal) | Out-Null
-    }
-} finally { $archive.Dispose() }
-$archive = [IO.Compression.ZipFile]::OpenRead($zip)
-try {
-    if (@($archive.Entries | Where-Object { $_.FullName.Contains('\') }).Count) { throw 'ZIP entry names must use forward slashes' }
-} finally { $archive.Dispose() }
-# Companion digest is required by the launcher's update flow. Upload both assets together.
-$zipHash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
-"$zipHash  $packageName.zip" | Set-Content -LiteralPath "$zip.sha256" -Encoding ASCII
+function New-PackageZip([string]$Folder, [string]$Name, [string]$Path) {
+    $archive = [IO.Compression.ZipFile]::Open($Path, [IO.Compression.ZipArchiveMode]::Create)
+    try {
+        foreach ($file in Get-ChildItem $Folder -Recurse -File | Sort-Object FullName) {
+            $entry = $Name + '/' + $file.FullName.Substring($Folder.Length + 1).Replace('\', '/')
+            [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $file.FullName, $entry, [IO.Compression.CompressionLevel]::Optimal) | Out-Null
+        }
+    } finally { $archive.Dispose() }
+    $archive = [IO.Compression.ZipFile]::OpenRead($Path)
+    try {
+        if (@($archive.Entries | Where-Object { $_.FullName.Contains('\') }).Count) { throw 'ZIP entry names must use forward slashes' }
+    } finally { $archive.Dispose() }
+    # Companion digest is required by the launcher's update flow. Upload both assets together.
+    $hash = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+    "$hash  $(Split-Path $Path -Leaf)" | Set-Content -LiteralPath "$Path.sha256" -Encoding ASCII
+}
+New-PackageZip $stage $packageName $zip
 Write-Output "Created local package: $zip"
+
+if ($Launcher) {
+    $windowsName = "Crackdown-Windows-$Version"
+    $windowsStage = Join-Path $output $windowsName
+    $windowsZip = Join-Path $output "$windowsName.zip"
+    if ((Test-Path -LiteralPath $windowsStage) -or (Test-Path -LiteralPath $windowsZip)) { throw 'This Windows package version already exists' }
+    $launcherExe = Join-Path $Launcher 'CrackdownRecomp.exe'
+    if (-not (Test-Path -LiteralPath $launcherExe -PathType Leaf)) { throw "No CrackdownRecomp.exe in $Launcher (build the launcher with -DLAUNCHER_GAME=cd1)" }
+    New-Item -ItemType Directory -Path $windowsStage | Out-Null
+    # Exactly one exe at the top: app launchers start the only one there.
+    Copy-Item -LiteralPath $launcherExe -Destination $windowsStage
+    Copy-Item -LiteralPath (Join-Path $Launcher 'assets') -Destination $windowsStage -Recurse
+    Copy-Item -LiteralPath (Join-Path $Launcher 'LICENSES') -Destination $windowsStage -Recurse
+    Copy-Item -LiteralPath (Join-Path $repo 'tools/windows-README.txt') -Destination (Join-Path $windowsStage 'README.txt')
+    @('', 'Build details', "Repo: $repoVersion", "SDK: $sdkVersion", 'Applied SDK patches:', $patchList) | Add-Content (Join-Path $windowsStage 'README.txt') -Encoding UTF8
+    # The game in cd1\, where the single-game launcher looks for it: everything but the combined launcher, its assets
+    # and its README.
+    $cd1 = Join-Path $windowsStage 'cd1'
+    New-Item -ItemType Directory -Path $cd1 | Out-Null
+    foreach ($item in Get-ChildItem $stage) {
+        if ($item.Name -in 'CrackdownLauncher.exe', 'assets', 'README.txt') { continue }
+        Copy-Item -LiteralPath $item.FullName -Destination $cd1 -Recurse
+    }
+    $tops = @(Get-ChildItem $windowsStage -File | Where-Object Extension -In '.exe', '.bat', '.cmd')
+    if ($tops.Count -ne 1) { throw 'The Windows package must have exactly one program at the top' }
+    New-PackageZip $windowsStage $windowsName $windowsZip
+    Write-Output "Created local Windows (app launcher) package: $windowsZip"
+}
 Write-Output 'Public upload remains a separate owner decision; this script does not publish.'
