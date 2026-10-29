@@ -395,7 +395,11 @@ int main(int argc,char** argv) {
   bool auto_focus=true;
   bool modal_child_open=false;
   unsigned smoke_frame=0;
+  // --play: press PLAY once the startup check has verified the game files (shortcuts, unattended tests).
+  bool autoplay=false;
+  for(int i=1;i<argc;++i) if(std::string(argv[i])=="--play") autoplay=true;
   while(!quit) {
+    if(autoplay&&!busy) { autoplay=false; if(verified&&!process.running()) launch(); }
     if(is_smoke && (!review||!busy)) {
       if(smoke_frame<d) { tab=int(smoke_frame/2); focus_page=true; }
       if(smoke_frame==d) show_dialog(Dialog::install);
@@ -509,7 +513,8 @@ int main(int argc,char** argv) {
     visuals->logo(ui_scale,gp->title);
     ImGui::SameLine();
     ImGui::SetCursorPosY(ImGui::GetCursorPosY()+std::max(0.f,(ImGui::GetItemRectSize().y-ImGui::GetTextLineHeight())*.5f));
-    ImGui::TextDisabled("RECOMP %s",LAUNCHER_VERSION);
+    // A single-game build ships inside the game's release: show that release, not the launcher's own version.
+    ImGui::TextDisabled("RECOMP %s",kSingleGame>=0&&!game_version.empty()?game_version.c_str():LAUNCHER_VERSION);
     // Game selector: one button per game, disabled while anything runs.
     {
       bool pending_pick; { std::lock_guard lock(picker.mutex); pending_pick=picker.pending; }
