@@ -60,8 +60,19 @@ int main(int argc,char** argv) {
       };
       auto manifest=load_manifest(destination/"game-manifest.txt");
       install_image(fs::u8path(argv[2]),destination,manifest,cancel,
-                    progress("Extracting"),progress("Verifying"));
+                    progress("Extracting"),progress("Verifying"),kGames[std::max(kSingleGame,0)].xex_hash);
       std::cout<<"Installed and fully verified "<<manifest.size()<<" files in "<<utf8(destination/"game")<<'\n';
+      return 0;
+    } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
+  }
+  // Content packages of the single game (or Crackdown 1), as the INSTALL TITLE UPDATE / INSTALL DLC buttons do:
+  // --install-update <package> <game folder (holds game\)>, --install-dlc <package> <save folder>.
+  if(argc==4 && (std::string(argv[1])=="--install-update"||std::string(argv[1])=="--install-dlc")) {
+    try {
+      const auto& g=kGames[std::max(kSingleGame,0)]; std::atomic_bool cancel=false;
+      auto target=fs::absolute(fs::u8path(argv[3]));
+      if(std::string(argv[1])=="--install-update") std::cout<<install_content_update(fs::u8path(argv[2]),target,target/"game",g.title_id,g.update_xexp,cancel,{},!g.update_exe)<<" installed\n";
+      else { auto pack=install_content_dlc(fs::u8path(argv[2]),target,g.title_id,cancel); std::cout<<pack.title<<" installed ("<<pack.damaged_blocks<<" damaged blocks)\n"; }
       return 0;
     } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
   }
@@ -86,9 +97,11 @@ int main(int argc,char** argv) {
       try { instance=std::make_unique<InstanceLock>(home); break; }
       catch(...) { if(!updated||attempt==100) throw; SDL_Delay(100); }
     }
-    recover_update(home);
-    // Games other than Crackdown 1 update in their own folder (no restart), so an interrupted one is rolled back here.
-    for(const auto& g:kGames) if(*g.folder&&fs::is_directory(home/g.folder)) recover_update(home/g.folder,*g.updates);
+    if(kSingleGame<0) {
+      recover_update(home);
+      // Games other than Crackdown 1 update in their own folder (no restart), so an interrupted one is rolled back here.
+      for(const auto& g:kGames) if(*g.folder&&fs::is_directory(home/g.folder)) recover_update(home/g.folder,*g.updates);
+    }
   } catch(const std::exception& e) {
     SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,"Crackdown Recomp",e.what(),nullptr);
     SDL_Quit(); return 1;
@@ -114,6 +127,7 @@ int main(int argc,char** argv) {
   try { game_sel=game_index(value<std::string>(read_config(preferences),"selected_game","cd1")); } catch(const std::exception&) {}
   // --game=<id> or --game <id> (the Crackdown 2 apworld's client starts "CrackdownLauncher --game crackdown2 --connect <uri>").
   for(int i=1;i<argc;++i) { std::string a=argv[i]; if(a.starts_with("--game=")) game_sel=game_index(a.substr(7)); else if(a=="--game"&&i+1<argc) game_sel=game_index(argv[++i]); }
+  if(kSingleGame>=0) { game_sel=kSingleGame; SDL_SetWindowTitle(window,game_sel==0?"Crackdown Recomp":"Crackdown 2 Recomp"); }
   const GameProfile* gp=&kGames[game_sel];
   fs::path ghome=game_home(home,*gp), config=ghome/gp->config;
   Task task; Picker picker; GameProcess process; std::vector<Entry> manifest;
@@ -177,6 +191,7 @@ int main(int argc,char** argv) {
     close_on_play=value<bool>(prefs,"close_on_play",false);
     use_title_update=value<bool>(prefs,"cd1_title_update",true);
   } catch(const std::exception& e) { error=e.what(); }
+  if(kSingleGame>=0) { auto_updates=false; ask_updates=false; }  // the app launcher that installed it updates it
   // Save root and profile of the selected game; rerun when the game changes.
   auto read_user=[&] {
     try {
@@ -380,7 +395,11 @@ int main(int argc,char** argv) {
   bool auto_focus=true;
   bool modal_child_open=false;
   unsigned smoke_frame=0;
+  // --play: press PLAY once the startup check has verified the game files (shortcuts, unattended tests).
+  bool autoplay=false;
+  for(int i=1;i<argc;++i) if(std::string(argv[i])=="--play") autoplay=true;
   while(!quit) {
+    if(autoplay&&!busy) { autoplay=false; if(verified&&!process.running()) launch(); }
     if(is_smoke && (!review||!busy)) {
       if(smoke_frame<d) { tab=int(smoke_frame/2); focus_page=true; }
       if(smoke_frame==d) show_dialog(Dialog::install);
@@ -494,12 +513,13 @@ int main(int argc,char** argv) {
     visuals->logo(ui_scale,gp->title);
     ImGui::SameLine();
     ImGui::SetCursorPosY(ImGui::GetCursorPosY()+std::max(0.f,(ImGui::GetItemRectSize().y-ImGui::GetTextLineHeight())*.5f));
-    ImGui::TextDisabled("RECOMP %s",LAUNCHER_VERSION);
+    // A single-game build ships inside the game's release: show that release, not the launcher's own version.
+    ImGui::TextDisabled("RECOMP %s",kSingleGame>=0&&!game_version.empty()?game_version.c_str():LAUNCHER_VERSION);
     // Game selector: one button per game, disabled while anything runs.
     {
       bool pending_pick; { std::lock_guard lock(picker.mutex); pending_pick=picker.pending; }
       ImGui::BeginDisabled(busy||pending_pick||process.running()||online.busy||dialog!=Dialog::none);
-      for(int i=0;i<kGameCount;++i) {
+      for(int i=0;kSingleGame<0&&i<kGameCount;++i) {
         ImGui::SameLine(0,i?6*ui_scale:24*ui_scale);
         bool active=i==game_sel;
         if(active) ImGui::PushStyleColor(ImGuiCol_Button,{.16f,.43f,.32f,1});
@@ -534,6 +554,9 @@ int main(int argc,char** argv) {
         auto total=task.total.load(),bytes=task.bytes.load(); ImGui::ProgressBar(total?static_cast<float>(double(bytes)/total):0,{430*ui_scale,0});
         if(total) ImGui::Text("%.1f / %.1f GB",bytes/1e9,total/1e9);
         focus_first(); if(ImGui::Button("Cancel verification / import")) task.cancel=true;
+      } else if(kSingleGame>=0&&!fs::is_regular_file(ghome/gp->exe)) {
+        if(menu("QUIT")) show_dialog(Dialog::quit);
+        ImGui::TextWrapped("%s is missing from %s. Reinstall or repair the app in the launcher you installed it with.",gp->exe,utf8(ghome).c_str());
       } else if(!launcher_package()&&!fs::is_regular_file(ghome/gp->exe)) {
         // This game's runtime comes from its own repository; nothing else works until it is in its folder.
         if(menu("DOWNLOAD RUNTIME",!blocked)) { show_dialog(Dialog::updates); check_updates(); }
@@ -553,7 +576,7 @@ int main(int argc,char** argv) {
           }
         }
         if(menu("VERIFY GAME FILES",!blocked&&!manifest.empty()&&fs::is_directory(game))) { visuals->clear_art(); begin(game,Job::full_check); busy=true; error.clear(); focus_page=true; }
-        if(menu("CHECK FOR UPDATES",!online.busy)) { show_dialog(Dialog::updates); check_updates(); }
+        if(kSingleGame<0&&menu("CHECK FOR UPDATES",!online.busy)) { show_dialog(Dialog::updates); check_updates(); }
         if(menu("SETTINGS")) { tab=1; focus_page=true; }
         if(menu("QUIT",!(online.busy&&online.install))) show_dialog(Dialog::quit);
         ImGui::BeginDisabled(blocked||manifest.empty());
@@ -752,16 +775,17 @@ int main(int argc,char** argv) {
     }
     if(tab==tab_about) {
       ImGui::Text("Crackdown Recomp / Launcher %s (selected: %s)",LAUNCHER_VERSION,gp->title);
-      ImGui::TextWrapped("Update source for %s: %s",gp->title,releases_url(*gp->updates).c_str());
+      if(kSingleGame<0) ImGui::TextWrapped("Update source for %s: %s",gp->title,releases_url(*gp->updates).c_str());
       if(!launcher_package()) { auto v=current_version(); ImGui::TextWrapped("Installed %s release: %s",gp->title,v.empty()?"none":v.c_str()); }
       ImGui::TextWrapped("Standalone front end using SDL3, Dear ImGui, toml++ and stb_image. Barlow fonts: SIL OFL 1.1. Controller prompts: CC0. Game art comes from your verified files.");
       focus_first(); if(ImGui::Button("Open licenses")) { try { show_folder(home/"LICENSES"); } catch(const std::exception& e) { error=e.what(); } }
-      ImGui::SameLine(); ImGui::BeginDisabled(!online_authorized); if(ImGui::Button("Open repository")) { auto url=project_url(*gp->updates); if(!SDL_OpenURL(url.c_str())) error=SDL_GetError(); } ImGui::EndDisabled();
+      ImGui::SameLine(); ImGui::BeginDisabled(!online_authorized&&kSingleGame<0); if(ImGui::Button("Open repository")) { auto url=project_url(*gp->updates); if(!SDL_OpenURL(url.c_str())) error=SDL_GetError(); } ImGui::EndDisabled();
       if(ImGui::Button("Open logs folder")) { try { fs::create_directories(home/"logs"); show_folder(home/"logs"); } catch(const std::exception& e) { error=e.what(); } }
       ImGui::SameLine(); if(ImGui::Button("Copy system info")) {
         try { report="Launcher: " LAUNCHER_VERSION "\n"+system_info()+"Game XEX SHA256: "+hash+"\nSave profile: "+(profile.empty()?"default":profile)+"\ncrackdown.toml:\n"+redacted_config(config); if(!SDL_SetClipboardText(report.c_str())) error=SDL_GetError(); }
         catch(const std::exception& e) { error=e.what(); }
       }
+      if(kSingleGame<0) {
       ImGui::BeginDisabled(online.busy||!writable);
       bool proposed=auto_updates;
       if(ImGui::Checkbox("Check for updates when the launcher opens",&proposed)) {
@@ -771,6 +795,7 @@ int main(int argc,char** argv) {
       if(ImGui::Checkbox(launcher_package()?"Include prereleases":"Include Crackdown prereleases (Crackdown 2 always lists them)",&proposed)) { try { update_config(preferences,{{"beta_updates",proposed?"true":"false"}}); beta_channel=proposed; } catch(const std::exception& e) { error=e.what(); } }
       ImGui::EndDisabled();
       if(ImGui::Button("Version history / updates")) show_dialog(Dialog::updates);
+      }
       if(!visuals->art_status.empty()) ImGui::TextWrapped("Art fallback: %s",visuals->art_status.c_str());
     }
     if(online.busy) ImGui::TextUnformatted(online.install?"Installing update...":"Checking updates...");
