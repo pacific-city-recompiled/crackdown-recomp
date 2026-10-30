@@ -1,0 +1,162 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Jerrod <jerrod.uno@gmail.com>
+Date: Fri, 30 Oct 2026 13:00:00 -0400
+Subject: [PATCH] input: MnK follows the last input; mouse invert X/Y
+
+With mnk_mode on, the MnK driver locked and hid the cursor whenever the
+window had focus, even for a player on a pad. The game turns mnk_mode on by
+default now, so the lock follows the last input on player 1
+(mnk_follow_last_input, default on): a key, a mouse button or 8 px of cursor
+travel hands the mouse to the game; non-neutral input from a real pad on
+player 1 releases it (logged both ways). While released, mouse movement does
+not turn the camera. Pads were never displaced: MnK is a synthetic device
+merged into player 1 next to pad 1 (SlotAssignment, MergeInto).
+
+mnk_invert_x / mnk_invert_y flip the mouse's camera axes (mouse only; the
+keybind_rstick_* keys and pads are unchanged).
+---
+diff --git a/include/rex/input/mnk/mnk_input_driver.h b/include/rex/input/mnk/mnk_input_driver.h
+--- a/include/rex/input/mnk/mnk_input_driver.h
++++ b/include/rex/input/mnk/mnk_input_driver.h
+@@ -24,6 +24,9 @@ namespace rex::input::mnk {
+ 
+ void SetMouseLookActive(bool active);
+ bool IsMouseLookActive();
++// Player 1's pad produced input: with mnk_follow_last_input the mouse is
++// released until the keyboard or mouse is used again.
++void NotePadInput();
+ 
+ class MnkInputDriver final : public InputDriver,
+                              public rex::ui::WindowInputListener,
+@@ -92,6 +95,8 @@ class MnkInputDriver final : public InputDriver,
+   int32_t prev_mouse_x_ = 0;
+   int32_t prev_mouse_y_ = 0;
+   bool mouse_captured_ = false;
++  // Free cursor travel (px) while released to a pad (mnk_follow_last_input).
++  float free_mouse_travel_ = 0.0f;
+   // Whether the window has the pointer locked and is reporting relative motion.
+   bool relative_mouse_mode_ = false;
+   // Cursor visibility to restore on capture release - the window owner may run
+diff --git a/src/input/input_system.cpp b/src/input/input_system.cpp
+--- a/src/input/input_system.cpp
++++ b/src/input/input_system.cpp
+@@ -237,6 +237,13 @@ X_RESULT InputSystem::GetState(uint32_t user_index, X_INPUT_STATE* out_state) {
+       continue;
+     }
+     active_devices_.Observe(user_index, id, state.gamepad);
++    // Keyboard/mouse belongs to player 1; a real pad there takes the mouse back.
++    if (user_index == 0 && !IsNeutral(state.gamepad)) {
++      const DeviceInfo* info = DeviceInfoFor(id);
++      if (info && !info->synthetic) {
++        mnk::NotePadInput();
++      }
++    }
+     if (!any) {
+       merged = state;
+       any = true;
+diff --git a/src/input/mnk/mnk_input_driver.cpp b/src/input/mnk/mnk_input_driver.cpp
+--- a/src/input/mnk/mnk_input_driver.cpp
++++ b/src/input/mnk/mnk_input_driver.cpp
+@@ -69,6 +69,11 @@ REXCVAR_DEFINE_STRING(keybind_dpad_right, "Shift+Right", "Input/Keybinds/Control
+ REXCVAR_DEFINE_STRING(keybind_back, "Z,Tab", "Input/Keybinds/Controller", "Back button");
+ REXCVAR_DEFINE_STRING(keybind_start, "X,Return", "Input/Keybinds/Controller", "Start button");
+ REXCVAR_DEFINE_STRING(keybind_guide, "", "Input/Keybinds/Controller", "Guide button");
++REXCVAR_DEFINE_BOOL(mnk_invert_x, false, "Input", "Invert the mouse's horizontal camera axis");
++REXCVAR_DEFINE_BOOL(mnk_invert_y, false, "Input", "Invert the mouse's vertical camera axis");
++REXCVAR_DEFINE_BOOL(mnk_follow_last_input, true, "Input",
++                    "Lock and hide the cursor only while the keyboard or mouse was used last; "
++                    "a pad on player 1 releases it");
+ 
+ namespace rex::input::mnk {
+ 
+@@ -148,6 +153,14 @@ bool TokenPressed(const bool (&key_down)[256], std::string_view token, uint8_t l
+ }
+ 
+ std::atomic<bool> mouse_look_active{true};
++// Keyboard/mouse was the last input on player 1 (mnk_follow_last_input).
++std::atomic<bool> mnk_last_input{false};
++// Pixels the free cursor must move to count as mouse use, so a nudged desk does not grab it.
++constexpr float kMouseUseDistance = 8.0f;
++
++bool MnkHasInput() {
++  return !REXCVAR_GET(mnk_follow_last_input) || mnk_last_input.load(std::memory_order_relaxed);
++}
+ 
+ }  // namespace
+ 
+@@ -159,6 +172,18 @@ bool IsMouseLookActive() {
+   return mouse_look_active.load(std::memory_order_relaxed);
+ }
+ 
++void NotePadInput() {
++  if (mnk_last_input.exchange(false, std::memory_order_relaxed)) {
++    REXLOG_INFO("MnK: pad input, releasing the mouse");
++  }
++}
++
++static void NoteMnkInput() {
++  if (!mnk_last_input.exchange(true, std::memory_order_relaxed)) {
++    REXLOG_INFO("MnK: keyboard/mouse input, mouse look on");
++  }
++}
++
+ using rex::ui::VirtualKey;
+ 
+ MnkInputDriver::MnkInputDriver(rex::ui::Window* window, size_t window_z_order)
+@@ -309,7 +334,7 @@ X_RESULT MnkInputDriver::GetDeviceState(DeviceId id, X_INPUT_STATE* out_state) {
+   // Mouse look is opt in. Without this gate, keyboard input alone would hide
+   // and lock the cursor, breaking the ImGui overlays.
+   QueueMouseCaptureUpdate(IsEnabled() && REXCVAR_GET(mnk_mouse) && IsMouseLookActive() &&
+-                          has_focus_ && is_active());
++                          MnkHasInput() && has_focus_ && is_active());
+ 
+   if (!is_active() || !has_focus_) {
+     if (out_state) {
+@@ -655,6 +680,7 @@ void MnkInputDriver::OnKeyDown(rex::ui::KeyEvent& e) {
+   std::lock_guard lock(state_mutex_);
+   uint16_t vk = static_cast<uint16_t>(e.virtual_key());
+   SetKeyState(vk, true);
++  NoteMnkInput();
+ }
+ 
+ void MnkInputDriver::OnKeyUp(rex::ui::KeyEvent& e) {
+@@ -668,6 +694,7 @@ void MnkInputDriver::OnKeyUp(rex::ui::KeyEvent& e) {
+ void MnkInputDriver::OnMouseDown(rex::ui::MouseEvent& e) {
+   if (!IsEnabled() || !has_focus_)
+     return;
++  NoteMnkInput();
+   std::lock_guard lock(state_mutex_);
+   switch (e.button()) {
+     case rex::ui::MouseEvent::Button::kLeft:
+@@ -710,17 +737,26 @@ void MnkInputDriver::OnMouseMove(rex::ui::MouseEvent& e) {
+   int32_t y = e.y();
+   {
+     std::lock_guard lock(state_mutex_);
+-    if (relative_mouse_mode_) {
++    const float sx = REXCVAR_GET(mnk_invert_x) ? -1.0f : 1.0f;
++    const float sy = REXCVAR_GET(mnk_invert_y) ? -1.0f : 1.0f;
++    if (!MnkHasInput()) {
++      // Released to a pad player: the free cursor does not turn the camera.
++      free_mouse_travel_ += std::abs(float(x - prev_mouse_x_)) + std::abs(float(y - prev_mouse_y_));
++    } else if (relative_mouse_mode_) {
+       // The pointer is locked, so the absolute position no longer moves.
+-      mouse_dx_ += e.dx();
+-      mouse_dy_ += e.dy();
++      mouse_dx_ += sx * e.dx();
++      mouse_dy_ += sy * e.dy();
+     } else {
+-      mouse_dx_ += float(x - prev_mouse_x_);
+-      mouse_dy_ += float(y - prev_mouse_y_);
++      mouse_dx_ += sx * float(x - prev_mouse_x_);
++      mouse_dy_ += sy * float(y - prev_mouse_y_);
+     }
+   }
+   prev_mouse_x_ = x;
+   prev_mouse_y_ = y;
++  if (free_mouse_travel_ >= kMouseUseDistance) {
++    free_mouse_travel_ = 0.0f;
++    NoteMnkInput();
++  }
+   // Without a pointer lock the cursor still has to be kept off the edges.
+   if (mouse_captured_ && !relative_mouse_mode_) {
+     RecenterCursorFromUIThread(x, y);

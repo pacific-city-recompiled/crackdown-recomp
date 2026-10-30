@@ -200,6 +200,16 @@ void ApplyGameDefaults() {
   // "mouse aim is broken"; and the SDK binds the triggers to Q/E only. With
   // mnk_mode on, the mouse turns the camera, left click fires (right trigger)
   // and right click locks on (left trigger), unless the user set those flags.
+  // Mouse/keyboard is on by default: it merges into player 1 beside pad 1
+  // (the SDK's SlotAssignment), so a pad keeps working, and SDK patch 0030
+  // locks the cursor only while the keyboard or mouse was used last.
+  if (!user_set("mnk_mode")) {
+    if (rex::cvar::SetFlagByName("mnk_mode", "true")) {
+      REXLOG_INFO("crackdown default: --mnk_mode=true");
+    } else {
+      REXLOG_WARN("crackdown default: could not set --mnk_mode=true");
+    }
+  }
   if (rex::cvar::Query<bool>("mnk_mode")) {
     static constexpr Default kMnkDefaults[] = {
         {"mnk_mouse", "true"},

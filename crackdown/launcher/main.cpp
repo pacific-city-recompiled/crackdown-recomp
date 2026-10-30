@@ -135,7 +135,7 @@ int main(int argc,char** argv) {
   Changes changes; int scale=1,window_size=0,rate=0,aa=0,aniso=2,aspect=0; [[maybe_unused]] int filter=0; bool fullscreen=true,mute=false;
   float mouse_sens=1.0f;
   float camera_speed=1.0f;
-  bool skip_intro=true,mnk=false,auto_updates=false,beta_channel=false,ask_updates=false;
+  bool skip_intro=true,mnk=false,invert_x=false,invert_y=false,auto_updates=false,beta_channel=false,ask_updates=false;
   int monitor=0,language=1,tab=0; bool focus_page=true; std::string device="keyboard",input_backend="sdl";
   fs::file_time_type log_since{};
   CoopSettings coop; char coop_own[64]{},coop_partner[64]{}; std::string coop_error; std::vector<std::string> coop_addresses;
@@ -169,7 +169,8 @@ int main(int argc,char** argv) {
     switch(value<int64_t>(t,"anisotropic_override",3)) { case -1: aniso=0; break; case 2: aniso=1; break; case 4: aniso=3; break; case 5: aniso=4; break; default: aniso=2; }
     auto width=value<int64_t>(t,"window_width",0); window_size=width==1280?1:width==1920?2:width==2560?3:0;
     language=static_cast<int>(value<int64_t>(t,"user_language",1)); if(language<1||language>10) language=1;
-    skip_intro=value<bool>(t,"skip_intro_videos",true); mnk=value<bool>(t,"mnk_mode",false);
+    skip_intro=value<bool>(t,"skip_intro_videos",true); mnk=value<bool>(t,"mnk_mode",game_sel==0);
+    invert_x=value<bool>(t,"mnk_invert_x",false); invert_y=value<bool>(t,"mnk_invert_y",false);
     mouse_sens=std::clamp(static_cast<float>(value<double>(t,"mnk_sensitivity",1.0)),0.1f,5.0f);
     coop=load_coop(t);
     std::snprintf(coop_own,sizeof(coop_own),"%s",coop.own_address.c_str()); std::snprintf(coop_partner,sizeof(coop_partner),"%s",coop.partner_address.c_str());
@@ -661,12 +662,16 @@ int main(int argc,char** argv) {
           changes["camera_sensitivity"]=std::abs(camera_speed-1.0f)<0.005f?std::nullopt:std::optional<std::string>(text);
         }
         if(game_sel==0) ImGui::TextWrapped("How fast the right stick (or the mouse) turns the camera. 1.00x is the original speed.");
-        if(ImGui::Checkbox("Mouse / keyboard mode",&mnk)) changes["mnk_mode"]=mnk?std::optional<std::string>("true"):std::nullopt;
+        // Crackdown 1 turns mnk_mode on by default (host_tuning.cpp); a pad still works beside it.
+        if(ImGui::Checkbox("Mouse / keyboard mode",&mnk)) changes["mnk_mode"]=mnk==(game_sel==0)?std::nullopt:std::optional<std::string>(mnk?"true":"false");
         if(mnk) {
           if(ImGui::SliderFloat("Mouse sensitivity",&mouse_sens,0.1f,5.0f,"%.2f")) {
             char text[16]; std::snprintf(text,sizeof(text),"%.2f",mouse_sens);
             changes["mnk_sensitivity"]=std::abs(mouse_sens-1.0f)<0.005f?std::nullopt:std::optional<std::string>(text);
           }
+          // SDK patch 0030 (Crackdown 1 only); the pad's vertical invert is the game's own Controller Settings > Aiming.
+          if(game_sel==0&&ImGui::Checkbox("Invert mouse X",&invert_x)) changes["mnk_invert_x"]=invert_x?std::optional<std::string>("true"):std::nullopt;
+          if(game_sel==0&&ImGui::Checkbox("Invert mouse Y",&invert_y)) changes["mnk_invert_y"]=invert_y?std::optional<std::string>("true"):std::nullopt;
           ImGui::TextWrapped("Game: WASD moves, the mouse aims, Enter or X is Start, left click fires, right click locks on, Space is A (jump), Backspace is B, L is the X button, P is Y, 1 / 3 are the bumpers, Tab is Back. Shift+arrows is the D-pad.");
         }
         ImGui::TextWrapped("Launcher: D-pad or left stick moves, the confirm button selects, and the back button returns. Shoulder buttons switch tabs. Keyboard: arrows, Enter, Esc, Q/E.");

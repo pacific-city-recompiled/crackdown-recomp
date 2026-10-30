@@ -69,8 +69,10 @@ The files are not code-signed, so Windows may warn you:
 
 ### Mouse and keyboard
 
-Turn on **Mouse / keyboard mode** in the launcher's CONTROLS tab (it also has a mouse
-sensitivity slider). The keyboard stands in for a controller:
+**Mouse / keyboard mode** is on by default (the launcher's CONTROLS tab turns it off and has
+a mouse sensitivity slider and Invert mouse X / Y). A controller keeps working beside it: the
+game takes the mouse (hides and locks the cursor) once you use the keyboard or mouse, and
+gives it back as soon as you use the controller. The keyboard stands in for a controller:
 
 | Controller | Keys |
 |---|---|
@@ -87,7 +89,8 @@ sensitivity slider). The keyboard stands in for a controller:
 | Left / right stick click | F / K |
 
 Every key can be rebound in `crackdown.toml` (`keybind_a`, `keybind_start`,
-`keybind_left_shoulder`, `keybind_lstick_press`, ...). `mnk_mouse = false` turns mouse look off.
+`keybind_left_shoulder`, `keybind_lstick_press`, ...). `mnk_mouse = false` turns mouse look off;
+`mnk_follow_last_input = false` keeps the cursor locked even while you play on a controller.
 
 ## DLC and the title update
 
