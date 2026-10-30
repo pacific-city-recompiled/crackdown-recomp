@@ -59,12 +59,15 @@ be opened without a request. The repository link is disabled until update
 checks have been authorized in that run or persisted preferences. Smoke mode
 never starts network operations, even if startup checks were enabled.
 
-Update sources live in `v2.h`: `update_host` (`gitlab.com`, the only host the
-updater contacts, on every redirect hop) and one `UpdateSource` per game with its
-GitLab project path and numeric id (`pacific-city-recompiled/crackdown-recomp`,
-`pacific-city-recompiled/crackdown-2-recomp`). Releases come from
-`/api/v4/projects/<id>/releases`; a SemVer prerelease tag is a prerelease. No token
-is stored or sent, so private projects produce an HTTP error.
+Update sources live in `v2.h`: `update_host` (`github.com`) and one `UpdateSource`
+per game with its GitHub repository (`pacific-city-recompiled/crackdown-recomp`,
+`pacific-city-recompiled/crackdown-2-recomp`). The updater contacts only
+api.github.com, github.com and GitHub's release asset hosts
+(release-assets/objects.githubusercontent.com), checked on every redirect hop.
+Releases come from `api.github.com/repos/<repo>/releases`; drafts are skipped, and a
+release flagged as a prerelease or with a SemVer prerelease tag is a prerelease.
+Package assets must be under `github.com/<repo>/releases/download/`. No token is
+stored or sent, so private repositories produce an HTTP error.
 
 Release tags must be SemVer, e.g. `v0.2.1` or `v0.3.0-beta.1`. Stable checks use
 `/releases/latest` and fetch a version-sorted history (up to 20 published

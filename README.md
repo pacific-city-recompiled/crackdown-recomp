@@ -6,11 +6,11 @@
 
 60 fps · up to 4K · ultrawide · mouse and keyboard · co-op · Archipelago randomizer
 
-[![Latest release](https://img.shields.io/gitlab/v/release/pacific-city-recompiled%2Fcrackdown-recomp?label=release&color=2ea44f)](https://gitlab.com/pacific-city-recompiled/crackdown-recomp/-/releases)
+[![Latest release](https://img.shields.io/github/v/release/pacific-city-recompiled/crackdown-recomp?label=release&color=2ea44f)](https://github.com/pacific-city-recompiled/crackdown-recomp/releases)
 [![License](https://img.shields.io/badge/license-BSD--3--Clause-lightgrey)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4)](SETUP.md#what-you-need)
 
-**[Download 1.3.0](https://gitlab.com/pacific-city-recompiled/crackdown-recomp/-/releases)** ·
+**[Download 1.3.1](https://github.com/pacific-city-recompiled/crackdown-recomp/releases)** ·
 **[Setup guide](SETUP.md)** ·
 **[Report a problem](SETUP.md#reporting-a-problem)**
 
@@ -23,7 +23,7 @@
 > [!IMPORTANT]
 > **Crackdown 2 is in the launcher (beta).** Since 1.1 one install plays both games: pick
 > CRACKDOWN 2 in the header, download its runtime from
-> [crackdown-2-recomp](https://gitlab.com/pacific-city-recompiled/crackdown-2-recomp), then install your disc, its
+> [crackdown-2-recomp](https://github.com/pacific-city-recompiled/crackdown-2-recomp), then install your disc, its
 > title update and any DLC. See [SETUP.md](SETUP.md#crackdown-2).
 
 ## About
@@ -89,8 +89,8 @@ The repository contains no game data. You need your own copy of Crackdown.
 
 ## Get started
 
-1. **Download** `CrackdownRecomp-1.3.0.zip` from the
-   [latest release](https://gitlab.com/pacific-city-recompiled/crackdown-recomp/-/releases) and extract
+1. **Download** `CrackdownRecomp-1.3.1.zip` from the
+   [latest release](https://github.com/pacific-city-recompiled/crackdown-recomp/releases) and extract
    the whole ZIP into a folder you can write to (for example `Documents\CrackdownRecomp`).
 2. **Run** `CrackdownLauncher.exe` and choose **Install game**. Select your Crackdown ISO
    (or a folder of extracted files). The launcher extracts and verifies it.

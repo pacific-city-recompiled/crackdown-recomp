@@ -25,7 +25,7 @@ Bug reports: include the latest cd1\logs\crackdown_NNN.log, cd1\VERSION.txt, wha
 happened and how to reproduce it.
 
 Third-party notices are in LICENSES and cd1\LICENSES. Source and releases:
-https://gitlab.com/pacific-city-recompiled/crackdown-recomp
-Launcher source: https://gitlab.com/pacific-city-recompiled/launcher
+https://github.com/pacific-city-recompiled/crackdown-recomp
+Launcher source: https://github.com/pacific-city-recompiled/pacific-city-recompiled-launcher
 Unofficial fan project, not affiliated with or endorsed by Microsoft. It contains
 no game data; you must own the game and supply your own files.

@@ -809,7 +809,7 @@ int main(int argc,char** argv) {
     if(ask_updates) ImGui::OpenPopup("Update preferences");
     ImGui::SetNextWindowSize({610*ui_scale,0},ImGuiCond_Always);
     if(ImGui::BeginPopupModal("Update preferences",nullptr,ImGuiWindowFlags_AlwaysAutoResize)) {
-      ImGui::TextWrapped("Allow the launcher to check for new releases on GitLab when it opens? No request is made until you enable this. You can always check manually.");
+      ImGui::TextWrapped("Allow the launcher to check for new releases on GitHub when it opens? No request is made until you enable this. You can always check manually.");
       ImGui::TextWrapped("Update sources: %s (Crackdown and this launcher) and %s (Crackdown 2).",releases_url(cd1_updates).c_str(),releases_url(cd2_updates).c_str());
       auto consent=[&](bool enabled) {
         try { update_config(preferences,{{"auto_updates",enabled?"true":"false"},{"update_consent_asked","true"}}); auto_updates=enabled; ask_updates=false; ImGui::CloseCurrentPopup(); focus_page=true; if(enabled) check_updates(); }
