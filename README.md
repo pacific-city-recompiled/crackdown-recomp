@@ -35,6 +35,27 @@ from **your own** disc dump, checks every file, keeps your settings and updates 
 
 The repository contains no game data. You need your own copy of Crackdown.
 
+## Credits and thanks
+
+This port stands on other people's work, and we are very grateful for it:
+
+- **[ReXGlue SDK](https://github.com/rexglue/rexglue-sdk)** by Tom Clay and its contributors:
+  the recompiler and runtime that turn the game's Xbox 360 code into a PC program. Without it
+  there would be no Crackdown Recomp. Thank you!
+- **[Xenia](https://github.com/xenia-project)** by Ben Vanik and the Xenia contributors: ReXGlue's
+  kernel, GPU and audio code comes from Xenia, and Xenia Canary was our reference for every
+  runtime fix.
+- **[XenonRecomp](https://github.com/hedge-dev/XenonRecomp)** (hedge-dev) and
+  **[rexdex's recompiler](https://github.com/rexdex/recompiler)**, which pioneered ahead-of-time
+  recompilation of Xbox 360 games and inspired ReXGlue.
+- **[SDL3](https://www.libsdl.org/)**, **[Dear ImGui](https://github.com/ocornut/imgui)** and
+  **[toml++](https://github.com/marzer/tomlplusplus)**, used by the launcher and the game.
+- **[Archipelago](https://archipelago.gg/)**, the multiworld randomizer framework behind our randomizer.
+- **linkssy2** ([Darkwatch Darker Edition](https://github.com/linkssy2/DarkwatchDarkerEdition)) and
+  **TGP482** ([SCDA-XBERecomp](https://github.com/TGP482/SCDA-XBERecomp)), whose PC ports set the bar
+  we aim for.
+- Realtime Worlds, for making Crackdown.
+
 ## Features in 1.0
 
 | | |
@@ -115,7 +136,7 @@ randomizer, is in **[SETUP.md](SETUP.md)**.
 |---|---|
 | F3 | Show or hide the fps counter |
 | F11 | Switch between fullscreen and a window |
-| W A S D, mouse | Move and look (turn on Mouse / keyboard mode in the launcher's CONTROLS tab) |
+| W A S D, mouse | Move and look (on by default; a controller works alongside it) |
 
 Full key map: [SETUP.md → Mouse and keyboard](SETUP.md#mouse-and-keyboard).
 
