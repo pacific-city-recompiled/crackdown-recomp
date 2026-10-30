@@ -6,7 +6,7 @@ param(
     # must come from the same MSVC version, so pass the install that built sdk/out/build/win-amd64
     # when vswhere's newest install differs (docs/launcher.md).
     [string]$VisualStudio,
-    # Single-game launcher build folder (gitlab.com/pacific-city-recompiled/launcher, -DLAUNCHER_GAME=cd1). Also builds
+    # Single-game launcher build folder (github.com/pacific-city-recompiled/pacific-city-recompiled-launcher, -DLAUNCHER_GAME=cd1). Also builds
     # the app-launcher ZIP Crackdown-Windows-<version>.zip (Quiver): CrackdownRecomp.exe at the top, this package in
     # cd1\. Its name must not start with CrackdownRecomp-: the combined launcher refuses a release with two ZIPs of
     # its prefix.
