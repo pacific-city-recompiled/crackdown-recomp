@@ -125,13 +125,17 @@ def modify_dlc_menu(data):
 # PC Settings rows, in page order. Ids and button order must match
 # crackdown/src/pc_settings.cpp (Rows()).
 ROWS = [
-    ('framerate', 'Frame rate', ['60 fps', '30 fps (original)']),
+    ('framerate', 'Frame rate', ['60 fps', '30 fps', '120 fps', '144 fps']),
     ('resolution', 'Internal resolution', ['720p', '1440p', '4K']),
-    ('aspect', 'Aspect ratio', ['16:9', '21:9', '32:9']),
+    ('aspect', 'Aspect ratio', ['16:9', '16:10', '21:9', '32:9', '4:3']),
     ('antialiasing', 'Anti-aliasing', ['Off', 'FXAA']),
+    ('filtering', 'Texture filtering', ['Game', '2x', '4x', '8x', '16x']),
     ('display', 'Display', ['Fullscreen', 'Windowed']),
 ]
-ROW_TOP = 287.0    # first radio group (was 351 with three rows)
+# Row and choice names follow the launcher's (crackdown/launcher/main.cpp) without its
+# "(default)" / "(experimental)" notes, "Anisotropic" and "'s own", which do not fit a 5-button row.
+ROW_TOP = 219.0    # first radio group (351 with three rows, 287 with five)
+NARROW_GAP = 6.0  # between radio buttons in rows of four or more
 ROW_PITCH = 68.0   # was 60; 36 (row) + LABEL_ABOVE + 2 px gap
 # Caption text is drawn from the top of its box (PC checks 4-4c): 26/28-high boxes cut
 # descenders, and a label 36 above its row overlapped the row above at 64 pitch.
@@ -144,7 +148,9 @@ def add_radio_buttons(editor, group, count):
     The preset's two buttons fill the panel width, so three or more buttons are
     narrowed to share that same span with the original gap between them
     (PC check 4, 2026-10-18: a third button at the old step sat outside the
-    panel). NavLeft/NavRight wrap around the row.
+    panel). Rows of four or more close the gap to NARROW_GAP so their labels fit
+    (PC check 2026-10-30: "120 fps" ran past its button at the 20 gap).
+    NavLeft/NavRight wrap around the row.
     """
     buttons = group['children']
     if count < len(buttons):
@@ -156,6 +162,8 @@ def add_radio_buttons(editor, group, count):
         if first is None or second is None or width is None:
             raise ValueError('preset radio buttons have no Position/Width to lay out')
         gap = (second[0] - first[0]) - width
+        if count >= 4:
+            gap = min(gap, NARROW_GAP)
         new_width = (second[0] - first[0] + width - (count - 1) * gap) / count
         while len(group['children']) < count:
             previous = group['children'][-1]
@@ -191,9 +199,9 @@ def pc_scene(data):
                         ('Height', 40.0), ('Visual', 'XuiLabel'), ('PointSize', 24.0)]:
         editor.set_property(title, name, value)
     # Make room above the original controls; keep the native collapse animation.
-    # 1.0 has five rows instead of three (ROW_PITCH apart), so the title and
-    # background start EXTRA higher and the background is taller by the added rows.
-    extra = 78.0
+    # Six rows instead of three (ROW_PITCH apart), so the title and background
+    # start EXTRA higher and the background is taller by the added rows.
+    extra = 146.0
     editor.set_property(title, 'Position', [346.0, 289.0 - extra, 0.0])
     background = editor.find('options/background2')
     last = ROW_TOP + (len(ROWS) - 1) * ROW_PITCH

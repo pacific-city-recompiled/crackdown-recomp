@@ -51,9 +51,10 @@ class CrackdownApp : public rex::ReXApp {
     // Capture effective cvars after GPU flags/defaults exist; edits are pending
     // until restart (including fullscreen). Use the launcher's adjacent file.
     crackdown::PCSettings().Initialize(rex::filesystem::GetExecutableFolder() / "crackdown.toml",
-        {rex::cvar::Query<bool>("vsync"), rex::cvar::Query<int32_t>("resolution_scale"),
-         rex::cvar::Query<std::string>("aspect_ratio"),
-         rex::cvar::Query<std::string>("swap_post_effect"), rex::cvar::Query<bool>("fullscreen")});
+        {rex::cvar::Query<bool>("vsync"), rex::cvar::Query<int32_t>("fps_cap"),
+         rex::cvar::Query<int32_t>("resolution_scale"), rex::cvar::Query<std::string>("aspect_ratio"),
+         rex::cvar::Query<std::string>("swap_post_effect"),
+         rex::cvar::Query<int32_t>("anisotropic_override"), rex::cvar::Query<bool>("fullscreen")});
     crackdown::SetPCMenuQuitAction(
         [this] {
           return app_context().CallInUIThreadDeferred([this] {

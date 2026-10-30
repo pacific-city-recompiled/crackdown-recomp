@@ -365,7 +365,7 @@ class RecipeTests(unittest.TestCase):
         self.assertEqual(edit.property_value(page, 'ClassOverride'), 'scene')
         self.assertEqual(edit.property_value(page, 'DefaultFocus'), 'framerate')
         self.assertEqual(edit.property_value(edit.find(page, 'pageTitle'), 'Visual'), 'XuiLabel')
-        names = ['framerate', 'resolution', 'aspect', 'antialiasing', 'display']
+        names = ['framerate', 'resolution', 'aspect', 'antialiasing', 'filtering', 'display']
         controls = [edit.find(page, name) for name in names]
         for i, group in enumerate(controls):
             self.assertEqual(group['class'], 'XuiRadioGroup')
@@ -379,15 +379,16 @@ class RecipeTests(unittest.TestCase):
                 self.assertEqual(edit.property_value(button, 'NavLeft'), buttons[j-1]['id'])
                 self.assertEqual(edit.property_value(button, 'NavRight'), buttons[(j+1)%len(buttons)]['id'])
                 self.assertEqual(edit.property_value(button, 'Text'), mod_menus.ROWS[i][2][j])
-            # Every row spans the preset's two buttons (0..380) with its 20 gap.
+            # Every row spans the preset's two buttons (0..380): its 20 gap, narrower in 4+ rows.
             p = [edit.property_value(b, 'Position') for b in buttons]
             w = [edit.property_value(b, 'Width') for b in buttons]
             self.assertAlmostEqual(p[-1][0] + w[-1], 380.0, places=3)
+            gap = mod_menus.NARROW_GAP if len(buttons) >= 4 else 20.0
             for j in range(1, len(buttons)):
-                self.assertAlmostEqual(p[j][0] - p[j-1][0] - w[j-1], 20.0, places=3)
+                self.assertAlmostEqual(p[j][0] - p[j-1][0] - w[j-1], gap, places=3)
                 self.assertEqual(w[j], w[0])
-        self.assertEqual(edit.property_value(controls[0]['children'][1], 'Text'), '30 fps (original)')
-        self.assertEqual(edit.property_value(controls[4]['children'][1], 'Text'), 'Windowed')
+        self.assertEqual(edit.property_value(controls[0]['children'][1], 'Text'), '30 fps')
+        self.assertEqual(edit.property_value(controls[5]['children'][1], 'Text'), 'Windowed')
         self.assertEqual(edit.property_value(controls[1]['children'][2], 'Text'), '4K')
         for ident in [n + 'Label' for n in names] + ['restartNotice']:
             caption = edit.find(page, ident)
@@ -416,7 +417,7 @@ class RecipeTests(unittest.TestCase):
         labels = {r['path']: r['value'] for r in xus.parse(mod_menus.pc_localization(local))}
         self.assertEqual(labels['options.pageTitle.Text'], 'PC Settings')
         self.assertEqual(labels['options.display.XuiRadioButton2.Text'], 'Windowed')
-        self.assertEqual(labels['options.aspect.XuiRadioButton3.Text'], '32:9')
+        self.assertEqual(labels['options.aspect.XuiRadioButton4.Text'], '32:9')
         self.assertNotIn('options.footer.Text', labels)
         for path in labels:
             edit.find(page, '/'.join(path.split('.')[:-1]))
