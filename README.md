@@ -10,7 +10,7 @@
 [![License](https://img.shields.io/badge/license-BSD--3--Clause-lightgrey)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4)](SETUP.md#what-you-need)
 
-**[Download 1.3.0](https://github.com/pacific-city-recompiled/crackdown-recomp/releases)** ·
+**[Download 1.3.1](https://github.com/pacific-city-recompiled/crackdown-recomp/releases)** ·
 **[Setup guide](SETUP.md)** ·
 **[Report a problem](SETUP.md#reporting-a-problem)**
 
@@ -89,7 +89,7 @@ The repository contains no game data. You need your own copy of Crackdown.
 
 ## Get started
 
-1. **Download** `CrackdownRecomp-1.3.0.zip` from the
+1. **Download** `CrackdownRecomp-1.3.1.zip` from the
    [latest release](https://github.com/pacific-city-recompiled/crackdown-recomp/releases) and extract
    the whole ZIP into a folder you can write to (for example `Documents\CrackdownRecomp`).
 2. **Run** `CrackdownLauncher.exe` and choose **Install game**. Select your Crackdown ISO
