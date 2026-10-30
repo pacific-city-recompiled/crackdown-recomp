@@ -71,8 +71,8 @@ The files are not code-signed, so Windows may warn you:
 
 **Mouse / keyboard mode** is on by default (the launcher's CONTROLS tab turns it off and has
 a mouse sensitivity slider and Invert mouse X / Y). A controller keeps working beside it: the
-game takes the mouse (hides and locks the cursor) once you use the keyboard or mouse, and
-gives it back as soon as you use the controller. The keyboard stands in for a controller:
+game takes the mouse (hides and locks the cursor) once you press a key or a mouse button or move
+the mouse a little, and gives it back when you press a button on the controller or push a stick. The keyboard stands in for a controller:
 
 | Controller | Keys |
 |---|---|

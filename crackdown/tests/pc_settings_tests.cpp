@@ -42,7 +42,7 @@ int main() {
   try {
     Temporary tmp;
     const auto path = tmp.path / "crackdown.toml";
-    const std::string other = "draw_resolution_scale_x = 3\r\n"
+    const std::string other = "window_width = 1920\r\n"
                               "name = '\xC3\xA9' # Unicode\r\n[unknown]\r\nvalue = 'literal'\r\n";
     const std::string original = "# retain\r\nvsync = false # frame comment\r\nfullscreen = true\r\n"
                                  "resolution_scale = 1\r\n" + other;
@@ -95,6 +95,12 @@ int main() {
       Require(store.Save(PCSetting::aspect, 4) && setting(read_config(path), "aspect_ratio")->value<std::string>() == "4:3", "4:3");
       for (auto key : {PCSetting::resolution, PCSetting::aspect, PCSetting::antialiasing}) Require(store.Save(key, 0), "1.0 defaults");
       Require(Read(path).empty(), "1.0 defaults remove their lines");
+      Write(path, "video_mode_width = 1920\nvideo_mode_height = 1080\ndraw_resolution_scale_x = 3\n");
+      Require(store.Save(PCSetting::aspect, 1) && store.Save(PCSetting::resolution, 1), "presets over overrides");
+      t = read_config(path);
+      Require(!setting(t, "video_mode_width") && !setting(t, "video_mode_height") &&
+              !setting(t, "draw_resolution_scale_x"), "presets drop video-mode and per-axis overrides, like the launcher");
+      Require(store.Save(PCSetting::aspect, 0) && store.Save(PCSetting::resolution, 0) && Read(path).empty(), "back to defaults");
       store.Initialize(path, {false, 60, 3, "21:9", "fxaa", 3, true});
       Require(store.Selection(PCSetting::resolution) == 2 && store.Selection(PCSetting::aspect) == 2 &&
               store.Selection(PCSetting::antialiasing) == 1, "1.0 startup values selected");

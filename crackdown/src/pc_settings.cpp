@@ -14,8 +14,7 @@ struct Edit {
   const char* value;
 };
 // Each button writes the same keys the launcher writes for that choice (crackdown/launcher
-// main.cpp), so both edit crackdown.toml alike. Advanced overrides the launcher leaves alone
-// (custom fps_cap, video_mode_*) stay untouched unless a choice owns that key.
+// main.cpp), so both edit crackdown.toml alike. Other advanced overrides stay untouched.
 struct Row {
   const char16_t* id;
   std::vector<std::vector<Edit>> choices;
@@ -27,14 +26,18 @@ const std::vector<Row>& Rows() {
         {{"vsync", "true"}, {"fps_cap", nullptr}},
         {{"vsync", nullptr}, {"fps_cap", "120"}},
         {{"vsync", nullptr}, {"fps_cap", "144"}}}},
+      // Like the launcher, a preset drops the per-axis scale and video-mode overrides it
+      // would otherwise fight (ApplyGameDefaults derives the video mode from the ratio).
       {u"resolution",
-       {{{"resolution_scale", nullptr}}, {{"resolution_scale", "2"}}, {{"resolution_scale", "3"}}}},
+       {{{"resolution_scale", nullptr}, {"draw_resolution_scale_x", nullptr}, {"draw_resolution_scale_y", nullptr}},
+        {{"resolution_scale", "2"}, {"draw_resolution_scale_x", nullptr}, {"draw_resolution_scale_y", nullptr}},
+        {{"resolution_scale", "3"}, {"draw_resolution_scale_x", nullptr}, {"draw_resolution_scale_y", nullptr}}}},
       {u"aspect",
-       {{{"aspect_ratio", nullptr}},
-        {{"aspect_ratio", "\"16:10\""}},
-        {{"aspect_ratio", "\"21:9\""}},
-        {{"aspect_ratio", "\"32:9\""}},
-        {{"aspect_ratio", "\"4:3\""}}}},
+       {{{"aspect_ratio", nullptr}, {"video_mode_width", nullptr}, {"video_mode_height", nullptr}},
+        {{"aspect_ratio", "\"16:10\""}, {"video_mode_width", nullptr}, {"video_mode_height", nullptr}},
+        {{"aspect_ratio", "\"21:9\""}, {"video_mode_width", nullptr}, {"video_mode_height", nullptr}},
+        {{"aspect_ratio", "\"32:9\""}, {"video_mode_width", nullptr}, {"video_mode_height", nullptr}},
+        {{"aspect_ratio", "\"4:3\""}, {"video_mode_width", nullptr}, {"video_mode_height", nullptr}}}},
       {u"antialiasing", {{{"swap_post_effect", nullptr}}, {{"swap_post_effect", "\"fxaa\""}}}},
       // anisotropic_override: -1 the game's own, 2 = 2x, 3 = 4x (SDK default), 4 = 8x, 5 = 16x.
       {u"filtering",
