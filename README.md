@@ -4,62 +4,127 @@
 
 **Crackdown (Xbox 360, 2007), recompiled to run natively on Windows PC.**
 
-60 fps · up to 4K · ultrawide · mouse and keyboard · co-op · Archipelago randomizer
+60 fps · up to 4K · ultrawide · controller-friendly launcher · mouse and keyboard · co-op · Archipelago
 
-[![Latest release](https://img.shields.io/github/v/release/pacific-city-recompiled/crackdown-recomp?label=release&color=2ea44f)](https://github.com/pacific-city-recompiled/crackdown-recomp/releases)
-[![License](https://img.shields.io/badge/license-BSD--3--Clause-lightgrey)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4)](SETUP.md#what-you-need)
+[![Latest release](https://img.shields.io/github/v/release/pacific-city-recompiled/crackdown-recomp?label=release&color=2ea44f)](https://github.com/pacific-city-recompiled/crackdown-recomp/releases/latest)
+[![License](https://img.shields.io/badge/license-BSD--3--Clause-lightgrey)](https://github.com/pacific-city-recompiled/crackdown-recomp/blob/main/LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4)](https://github.com/pacific-city-recompiled/crackdown-recomp/blob/main/SETUP.md#what-you-need)
 
-**[Download 1.3.1](https://github.com/pacific-city-recompiled/crackdown-recomp/releases)** ·
-**[Setup guide](SETUP.md)** ·
-**[Report a problem](SETUP.md#reporting-a-problem)**
+**[Download 1.3.2](https://github.com/pacific-city-recompiled/crackdown-recomp/releases/latest)** ·
+**[Setup guide](https://github.com/pacific-city-recompiled/crackdown-recomp/blob/main/SETUP.md)** ·
+**[Report a problem](https://github.com/pacific-city-recompiled/crackdown-recomp/issues)** ·
+**[Crackdown 2](https://github.com/pacific-city-recompiled/crackdown-2-recomp)**
 
-<br>
-
-<img src="docs/images/hero.jpg" alt="An agent drops from the rooftops toward the Pacific City skyline" width="100%">
+<img src="https://raw.githubusercontent.com/pacific-city-recompiled/crackdown-recomp/main/docs/images/hero.jpg" alt="An agent drops from the rooftops toward the Pacific City skyline" width="100%">
 
 </div>
 
+Crackdown Recomp is an unofficial native PC port of Crackdown. It is not an emulator: the game's
+Xbox 360 code is translated ahead of time (static recompilation) into a Windows program, then fixed
+and extended for modern PCs. A launcher installs the game from **your own** disc, checks every file,
+keeps your settings and saves, and works fully with a controller.
+
 > [!IMPORTANT]
-> **Crackdown 2 is in the launcher (beta).** Since 1.1 one install plays both games: pick
-> CRACKDOWN 2 in the header, download its runtime from
-> [crackdown-2-recomp](https://github.com/pacific-city-recompiled/crackdown-2-recomp), then install your disc, its
-> title update and any DLC. See [SETUP.md](SETUP.md#crackdown-2).
+> No game files are included. You need your own dump of the **Crackdown World multi-language disc**
+> (ISO, XISO or an extracted folder).
 
-## About
+## Install
 
-Crackdown Recomp is an unofficial native PC port of Crackdown. It is not an emulator: the
-game's original Xbox 360 code is translated ahead of time (static recompilation) into a
-native Windows program, then fixed and extended for modern PCs. A launcher installs the game
-from **your own** disc dump, checks every file, keeps your settings and updates itself.
+### With Quiver Launcher
 
-The repository contains no game data. You need your own copy of Crackdown.
+Find **Crackdown** in [Quiver](https://quiverlauncher.com), press **Get**, then **Play**. Quiver
+downloads and updates the game; it opens the Crackdown launcher, which installs your disc on first run.
 
-## Features in 1.0
+### From the release ZIP
 
-| | |
+| Download | Use it if |
 |---|---|
-| **60 fps by default** | Smooth gameplay with the game's physics, driving, stairs and audio fixed to match the original 30 fps timing. 30 fps is one click away. |
-| **Fast** | The renderer's work is split across threads and repeated per-draw work is skipped. On an RTX 5080 at 1080p uncapped, the spawn point went from about 65 to 110 fps and camera pans from about 80 to 130+. |
-| **Graphics options** | Internal resolution up to 4K, FXAA and texture filtering, in the launcher's GRAPHICS tab or the new **PC Settings** page in the game's own menus. |
-| **Ultrawide** | Aspect ratios 16:9, 16:10, 21:9, 32:9 and 4:3. Wider ratios show more of Pacific City instead of stretching the picture. |
-| **Mouse and keyboard** | Full mouse look and rebindable keys, plus any Xbox-style controller. A camera turn speed slider (0.25x to 4x) works for both. |
-| **Co-op** | Two-player campaign over System Link between two PCs, set up from the launcher (Host or Join). |
-| **Archipelago randomizer** | Join an [Archipelago](https://archipelago.gg) multiworld: orbs, supply points, weapon deposits and bosses hold items for every player in the room. |
-| **10 languages** | Pick the game's language in the launcher (the disc may not include all of them). |
-| **Save profiles and portable mode** | Separate save profiles, or keep saves next to the game on a USB drive. |
-| **Quality of life** | F3 fps counter, F11 fullscreen/window toggle, skippable boot logos, one-click updates that keep your saves and settings. |
+| `Crackdown-Windows-1.3.2.zip` | You want just Crackdown. Run `CrackdownRecomp.exe`; the game sits in `cd1\` next to it. This is the package Quiver installs. |
+| `CrackdownRecomp-1.3.2.zip` | You want the combined launcher that plays **Crackdown and Crackdown 2** from one install and updates itself. Run `CrackdownLauncher.exe`. |
 
-## Screenshots
+Get either from the [latest release](https://github.com/pacific-city-recompiled/crackdown-recomp/releases/latest)
+and extract the **whole** ZIP into a folder you can write to (for example `Documents\Crackdown`, not
+`Program Files`). Already on 1.2.2 or newer? Use **Check for updates** in the launcher instead.
 
-<p align="center">
-  <img src="docs/images/gameplay.gif" alt="Rooftop drop over Pacific City at 60 fps" width="720">
-</p>
+## First run
+
+1. Open the launcher and choose **INSTALL GAME**. Pick your disc image (**DISC IMAGE (ISO)**) or an
+   already-extracted folder. The launcher extracts it and checks every file against the supported version.
+2. Optional: **Install title update** (Title Update #6) and **Install DLC** from the home page. The
+   Four-Play Pack works on the original game; the Free-For-All Pack (Keys to the City, Street Racing)
+   needs the title update. See [DLC and the title update](https://github.com/pacific-city-recompiled/crackdown-recomp/blob/main/SETUP.md#dlc-and-the-title-update).
+3. When the status reads **Ready to play**, press **PLAY**.
+
+<img src="https://raw.githubusercontent.com/pacific-city-recompiled/crackdown-recomp/main/docs/images/launcher-home.png" alt="The launcher's home page: PLAY, the save profile and a status card" width="100%">
+
+## Controller shortcuts
+
+The whole launcher works with a controller, so it is comfortable from the couch, in Big Picture or in Quiver.
+
+| Button | Does |
+|---|---|
+| **Start** | Play (from the home page) |
+| **X** | Open Settings |
+| **Y** | Pick the save profile |
+| **LB / RB** | Previous / next page |
+| **D-pad / left stick** | Move; **left / right** changes a setting in place |
+| **A / B** | Select / back |
+| **LT + RT** (or F11) | Switch the launcher between fullscreen and a window |
+
+**A** on a text box opens an on-screen keyboard (X deletes, Y types a space, Start finishes). Under
+**Gameplay → Advanced** you can open the launcher fullscreen and start the game right away after a
+3-second countdown (any button stops it). The launcher hides while you play and comes back when the game closes.
+
+In game, **F3** shows the fps counter and **F11** switches fullscreen. Mouse and keyboard: turn on
+**Mouse and keyboard** under Gameplay ([key map](https://github.com/pacific-city-recompiled/crackdown-recomp/blob/main/SETUP.md#mouse-and-keyboard)).
+
+## Settings
+
+Settings save on their own and apply the next time you press Play. Rare and debug options sit under each
+page's **Show advanced settings**.
+
+| Page | What's there |
+|---|---|
+| **Display** | Fullscreen, resolution (720p up to 4K), aspect ratio (16:9, 16:10, 21:9, 32:9, 4:3; wider shows more of the city, no stretching), frame rate (60 fps default, 30 fps for the original timing), anti-aliasing, texture filtering |
+| **Gameplay** | Language (10, if your disc has them), skip intro logos, camera turn speed (0.25x to 4x), mouse and keyboard, co-op over System Link |
+| **Saves & Archipelago** | Save profiles, the saves folder, portable mode (saves next to the game), Archipelago connection |
+| **About** | Versions, verify game files, logs folder, copy system info |
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/images/driving.jpg" alt="An Agency car launching off the rocks next to Fun Land"></td>
-    <td width="50%"><img src="docs/images/street.jpg" alt="An agent on a downtown street with traffic"></td>
+    <td width="50%"><img src="https://raw.githubusercontent.com/pacific-city-recompiled/crackdown-recomp/main/docs/images/launcher-display.png" alt="The Display settings page"></td>
+    <td width="50%"><img src="https://raw.githubusercontent.com/pacific-city-recompiled/crackdown-recomp/main/docs/images/launcher-archipelago.png" alt="The Saves and Archipelago settings page"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Display</sub></td>
+    <td align="center"><sub>Saves & Archipelago</sub></td>
+  </tr>
+</table>
+
+The game's own menus also have a **PC Settings** page for the graphics options.
+
+## Archipelago randomizer (experimental)
+
+Join an [Archipelago](https://archipelago.gg) multiworld: orbs, supply points, weapon deposits and bosses
+hold items for every player in the room, and other games send you Crackdown's skills and weapons.
+
+1. On **Saves & Archipelago**, create a save profile for the seed (one profile per seed). With a controller,
+   **Create a profile for this seed** opens the keyboard.
+2. Turn on **Connect when this profile plays**.
+3. **Server:** keep **archipelago.gg** and type just the **port** from your room page (the number after
+   `archipelago.gg:`, for example `38281`). For a self-hosted or other server, pick **Custom address** and
+   enter `host:port`.
+4. Enter your **slot name** and the room **password** (if any), then press **PLAY**. The game connects by
+   itself; there is no separate client window.
+
+Making a player file, generating and hosting a seed: [SETUP.md → Archipelago](https://github.com/pacific-city-recompiled/crackdown-recomp/blob/main/SETUP.md#archipelago-randomizer-experimental).
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><img src="https://raw.githubusercontent.com/pacific-city-recompiled/crackdown-recomp/main/docs/images/driving.jpg" alt="An Agency car launching off the rocks next to Fun Land"></td>
+    <td width="50%"><img src="https://raw.githubusercontent.com/pacific-city-recompiled/crackdown-recomp/main/docs/images/street.jpg" alt="An agent on a downtown street with traffic"></td>
   </tr>
   <tr>
     <td align="center"><sub>Driving at 60 fps</sub></td>
@@ -67,70 +132,33 @@ The repository contains no game data. You need your own copy of Crackdown.
   </tr>
 </table>
 
-**Ultrawide without stretching.** The same moment at 21:9: the extra width shows more of the city.
+<img src="https://raw.githubusercontent.com/pacific-city-recompiled/crackdown-recomp/main/docs/images/ultrawide.jpg" alt="The same rooftop drop at 21:9, showing more city on both sides" width="100%">
 
-<img src="docs/images/ultrawide.jpg" alt="The same rooftop drop at 21:9, showing more city on both sides" width="100%">
+<p align="center"><sub>21:9 without stretching: the extra width shows more of the city.</sub></p>
 
-<table>
-  <tr>
-    <td width="50%"><img src="docs/images/launcher-home.png" alt="The launcher's home screen"></td>
-    <td width="50%"><img src="docs/images/launcher-graphics.png" alt="The launcher's GRAPHICS tab"></td>
-  </tr>
-  <tr>
-    <td align="center"><sub>The launcher installs, verifies and updates the game</sub></td>
-    <td align="center"><sub>GRAPHICS tab: resolution, aspect ratio, FXAA, texture filtering</sub></td>
-  </tr>
-</table>
-
-<p align="center">
-  <img src="docs/images/pc-settings.jpg" alt="The in-game PC Settings page" width="70%"><br>
-  <sub>The new PC Settings page in the game's own menus</sub>
-</p>
-
-## Get started
-
-1. **Download** `CrackdownRecomp-1.3.1.zip` from the
-   [latest release](https://github.com/pacific-city-recompiled/crackdown-recomp/releases) and extract
-   the whole ZIP into a folder you can write to (for example `Documents\CrackdownRecomp`).
-2. **Run** `CrackdownLauncher.exe` and choose **Install game**. Select your Crackdown ISO
-   (or a folder of extracted files). The launcher extracts and verifies it.
-3. **Press Play.**
-
-The full guide, including Windows warnings, mouse and keyboard controls, co-op and the
-randomizer, is in **[SETUP.md](SETUP.md)**.
-
-### Requirements
+## Requirements
 
 | | |
 |---|---|
-| OS | Windows 10 or 11, 64-bit. Steam Deck and Linux players report it runs under Proton ([notes](SETUP.md#what-you-need)). |
+| OS | Windows 10 or 11, 64-bit. Steam Deck and Linux players report it runs under Proton ([notes](https://github.com/pacific-city-recompiled/crackdown-recomp/blob/main/SETUP.md#what-you-need)). |
 | CPU | x64 with AVX2 and FMA3 (most Intel since 2013, AMD since 2015) |
 | GPU | DirectX 12 |
 | Runtime | [Microsoft Visual C++ x64 Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) |
-| Game | Your own dump of the **Crackdown World multi-language disc** (ISO, XISO or extracted folder) |
+| Game | Your own dump of the Crackdown World multi-language disc |
 
-### Controls at a glance
+## Troubleshooting
 
-| Key | Action |
-|---|---|
-| F3 | Show or hide the fps counter |
-| F11 | Switch between fullscreen and a window |
-| W A S D, mouse | Move and look (turn on Mouse / keyboard mode in the launcher's CONTROLS tab) |
-
-Full key map: [SETUP.md → Mouse and keyboard](SETUP.md#mouse-and-keyboard).
-
-## Known issues
-
-- Windows may refuse to start it with **`0xc0e90002`** ("This app can't run on your PC").
-  That is Smart App Control blocking unsigned programs; see
-  [SETUP.md → Windows warnings](SETUP.md#windows-warnings-expected).
-
-## Roadmap
-
-- **1.2:** DLC support (the Four-Play Pack, and the Free-For-All Pack with Keys to the City
-  and Street Racing through Title Update #6), co-op at 60 fps, ultrawide and forced V-Sync fixes.
-- **1.3:** 120 and 144 fps, and the Archipelago randomizer on the title update.
-- Native Linux: requested, no plan or date yet. Proton works today.
+- **"Windows protected your PC" (SmartScreen):** the files aren't code-signed. Click **More info → Run anyway**.
+- **Microsoft Defender flags the launcher** (`Trojan:Win32/Bearfoos.A!ml`): a heuristic false positive on a new
+  unsigned program. Restore it from **Windows Security → Protection history**, or don't run it and tell us.
+- **"This app can't run on your PC" / `0xc0e90002`:** Windows Smart App Control blocks unsigned programs and has no
+  per-app exception. The only way past it is turning Smart App Control off.
+- **The launcher says a file doesn't match:** your disc is a different version. Only the World multi-language disc
+  is supported (`default.xex` SHA256 `7aaa7a89…77e5a`).
+- **The launcher finds no update** (1.2.1 to 1.3.0 checked older hosts): download the newest ZIP once and copy it
+  over your install. Your game files, saves and settings stay.
+- **Something else:** on **About**, use **Open logs folder** and **Copy system info**, and open an
+  [issue](https://github.com/pacific-city-recompiled/crackdown-recomp/issues) with the newest `crackdown_NNN.log`.
 
 ## For developers
 
@@ -138,18 +166,18 @@ Full key map: [SETUP.md → Mouse and keyboard](SETUP.md#mouse-and-keyboard).
 |---|---|
 | `crackdown/src` | Game hooks and runtime fixes on top of the [ReXGlue SDK](https://github.com/rexglue/rexglue-sdk) (submodule `sdk/`, pinned to a release) |
 | `patches/sdk` | SDK fixes, applied by `build-and-run.bat` / `tools/apply-sdk-patches.sh` |
-| `crackdown/launcher` | The launcher and installer |
-| `docs/` | Build playbook ([`docs/playbook.md`](docs/playbook.md)), reverse-engineering notes ([`docs/re-notes.md`](docs/re-notes.md)), the [60 fps audit](docs/60fps-audit.md) and design plans |
+| `docs/` | Build [playbook](https://github.com/pacific-city-recompiled/crackdown-recomp/blob/main/docs/playbook.md), [reverse-engineering notes](https://github.com/pacific-city-recompiled/crackdown-recomp/blob/main/docs/re-notes.md), the [60 fps audit](https://github.com/pacific-city-recompiled/crackdown-recomp/blob/main/docs/60fps-audit.md) and design plans |
 
-The recompiled C++ is generated locally from your own `default.xex`; neither it nor any game
-file is committed. Building from source is covered in the playbook.
+The launcher lives in its own repository,
+[pacific-city-recompiled-launcher](https://github.com/pacific-city-recompiled/pacific-city-recompiled-launcher).
+The recompiled C++ is generated locally from your own `default.xex`; neither it nor any game file is committed.
 
 ## Legal
 
-Crackdown Recomp is an unofficial fan project. It is not affiliated with or endorsed by
-Microsoft, Xbox Game Studios or Realtime Worlds. Crackdown and all related names and assets
-belong to their owners. No game data is distributed; you must own the game and supply your
-own disc dump.
+Crackdown Recomp is an unofficial fan project. It is not affiliated with or endorsed by Microsoft, Xbox Game
+Studios or Realtime Worlds. Crackdown and all related names and assets belong to their owners. No game data is
+distributed; you must own the game and supply your own disc dump.
 
-The source code is released under the BSD-3-Clause license, see [LICENSE](LICENSE).
-Third-party code keeps its own notices (`tools/launcher-NOTICES.txt`, `sdk/LICENSE`).
+The source code is released under the BSD-3-Clause license, see
+[LICENSE](https://github.com/pacific-city-recompiled/crackdown-recomp/blob/main/LICENSE). Third-party code keeps
+its own notices (`tools/launcher-NOTICES.txt`, `sdk/LICENSE`).
